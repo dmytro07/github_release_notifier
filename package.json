@@ -1,0 +1,64 @@
+{
+  "name": "github-release-notifier",
+  "version": "1.0.0",
+  "description": "GitHub Release Notification API — subscribe to email notifications about new releases of GitHub repositories.",
+  "type": "module",
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "start": "node dist/server.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test:unit": "vitest run --config vitest.config.unit.ts",
+    "test:integration": "vitest run --config vitest.config.integration.ts",
+    "test:e2e": "vitest run --config vitest.config.e2e.ts",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:generate": "prisma generate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.25.0",
+  "dependencies": {
+    "@prisma/client": "^7.7.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.1",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.3.2",
+    "helmet": "^8.1.0",
+    "nodemailer": "^8.0.5",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0",
+    "zod": "^4.3.6"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "prisma",
+      "esbuild"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@testcontainers/postgresql": "^11.14.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/nodemailer": "^8.0.0",
+    "@types/supertest": "^7.2.0",
+    "eslint": "^10.2.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.8.1",
+    "prisma": "^7.7.0",
+    "supertest": "^7.2.2",
+    "testcontainers": "^11.14.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "typescript-eslint": "^8.58.1",
+    "vitest": "^4.1.4"
+  }
+}

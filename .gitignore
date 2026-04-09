@@ -1,0 +1,30 @@
+node_modules/
+dist/
+*.js.map
+*.d.ts.map
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Prisma
+prisma/migrations/**/migration_lock.toml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Coverage
+coverage/

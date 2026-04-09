@@ -1,0 +1,36 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Repository {
+  id            String         @id @default(uuid()) @map("id")
+  ownerRepo     String         @unique @map("owner_repo")
+  lastSeenTag   String?        @map("last_seen_tag")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  subscriptions Subscription[]
+
+  @@map("repositories")
+}
+
+model Subscription {
+  id                String     @id @default(uuid()) @map("id")
+  email             String     @map("email")
+  confirmed         Boolean    @default(false) @map("confirmed")
+  confirmationToken String     @unique @map("confirmation_token")
+  unsubscribeToken  String     @unique @map("unsubscribe_token")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime   @updatedAt @map("updated_at")
+
+  repositoryId      String     @map("repository_id")
+  repository        Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([email, repositoryId], map: "subscriptions_email_repository_id_key")
+  @@index([confirmationToken], map: "subscriptions_confirmation_token_idx")
+  @@index([unsubscribeToken], map: "subscriptions_unsubscribe_token_idx")
+  @@map("subscriptions")
+}
