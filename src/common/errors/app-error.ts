@@ -27,3 +27,9 @@ export class ConflictError extends AppError {
     super(409, message);
   }
 }
+
+export class GitHubRateLimitError extends AppError {
+  constructor(public readonly retryAfterMs: number) {
+    super(503, 'Service temporarily unavailable, please try again later');
+  }
+}

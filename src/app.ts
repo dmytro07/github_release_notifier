@@ -14,9 +14,10 @@ import { createSubscriptionRouter } from './modules/subscription/index.js';
 import { notFound } from './common/middleware/not-found.js';
 import { errorHandler } from './common/middleware/error-handler.js';
 
-const swaggerDoc = yaml.load(
-  readFileSync(join(process.cwd(), 'swagger.yaml'), 'utf8'),
-) as Record<string, unknown>;
+const swaggerDoc = yaml.load(readFileSync(join(process.cwd(), 'swagger.yaml'), 'utf8')) as Record<
+  string,
+  unknown
+>;
 
 export function createApp(controller: ISubscriptionController): Express {
   const app = express();
@@ -32,7 +33,6 @@ export function createApp(controller: ISubscriptionController): Express {
 
   app.use(
     rateLimit({
-      windowMs: 15 * 60 * 1000,
       max: 100,
       standardHeaders: true,
       legacyHeaders: false,

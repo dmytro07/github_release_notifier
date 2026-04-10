@@ -4,6 +4,7 @@ import type { ISubscriptionService } from '../modules/subscription/subscription.
 import type { IRepositoryService } from '../modules/repository/repository.service.js';
 import type { GetRepoDto } from '../modules/repository/repository.schema.js';
 import { logger } from '../config/logger.js';
+import { GitHubRateLimitError } from '../common/errors/app-error.js';
 
 const REPO_PAGE_SIZE = 50;
 const SUB_PAGE_SIZE = 50;
@@ -37,6 +38,11 @@ export class ScannerJob {
     this.timeoutId = setTimeout(() => void this.run(), this.intervalMs);
   }
 
+  private sleep(ms: number): Promise<void> {
+    const capped = Math.min(ms, 3_600_000);
+    return new Promise((resolve) => setTimeout(resolve, capped));
+  }
+
   private async run(): Promise<void> {
     try {
       let repoPage = 1;
@@ -49,7 +55,20 @@ export class ScannerJob {
         );
 
         for (const repo of reposResult.data) {
-          await this.processRepo(repo);
+          try {
+            await this.processRepo(repo);
+          } catch (err) {
+            if (err instanceof GitHubRateLimitError) {
+              logger.warn(
+                { retryAfterMs: err.retryAfterMs },
+                'GitHub rate limit hit, pausing scanner',
+              );
+              await this.sleep(err.retryAfterMs);
+              return;
+            } else {
+              logger.error({ err, repo: `${repo.owner}/${repo.repo}` }, 'Failed to process repo');
+            }
+          }
         }
 
         hasMoreRepos = reposResult.hasMore;
@@ -107,6 +126,7 @@ export class ScannerJob {
         subPage++;
       }
     } catch (repoErr) {
+      if (repoErr instanceof GitHubRateLimitError) throw repoErr;
       logger.error({ err: repoErr, repo: fullName }, 'Failed to check repository for new releases');
     }
   }
