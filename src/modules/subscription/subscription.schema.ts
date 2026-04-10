@@ -38,9 +38,21 @@ export const emailQuerySchema = z.object({
 
 export type EmailQuery = z.infer<typeof emailQuerySchema>;
 
-export interface SubscriptionResponse {
-  email: string;
-  repo: string;
-  confirmed: boolean;
-  last_seen_tag: string | null;
-}
+export const getSubscriptionDtoSchema = z
+  .object({
+    email: z.string(),
+    confirmed: z.boolean(),
+    repository: z.object({
+      owner: z.string(),
+      repo: z.string(),
+      lastSeenTag: z.string().nullable(),
+    }),
+  })
+  .transform((data) => ({
+    email: data.email,
+    repo: `${data.repository.owner}/${data.repository.repo}`,
+    confirmed: data.confirmed,
+    last_seen_tag: data.repository.lastSeenTag,
+  }));
+
+export type GetSubscriptionDto = z.output<typeof getSubscriptionDtoSchema>;

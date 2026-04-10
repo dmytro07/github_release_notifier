@@ -159,7 +159,7 @@ describe('RepositoryService', () => {
       await service.getReposThatHaveActiveSubscriptions();
 
       expect(mockRepository.findMany).toHaveBeenCalledWith({
-        where: { subscriptions: { some: {} } },
+        where: { subscriptions: { some: { confirmed: true } } },
       });
     });
 

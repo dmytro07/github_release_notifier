@@ -34,7 +34,7 @@ export class RepositoryService {
 
   async getReposThatHaveActiveSubscriptions(): Promise<GetRepoDto[]> {
     const records = await this.prisma.repository.findMany({
-      where: { subscriptions: { some: {} } },
+      where: { subscriptions: { some: { confirmed: true } } },
     });
 
     return records.map((r) => getRepoDtoSchema.parse(r));
