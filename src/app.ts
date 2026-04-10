@@ -9,7 +9,7 @@ import swaggerUi from 'swagger-ui-express';
 import yaml from 'js-yaml';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
-import type { SubscriptionController } from './modules/subscription/subscription.controller.js';
+import type { ISubscriptionController } from './modules/subscription/subscription.controller.js';
 import { createSubscriptionRouter } from './modules/subscription/index.js';
 import { notFound } from './common/middleware/not-found.js';
 import { errorHandler } from './common/middleware/error-handler.js';
@@ -18,7 +18,7 @@ const swaggerDoc = yaml.load(
   readFileSync(join(process.cwd(), 'swagger.yaml'), 'utf8'),
 ) as Record<string, unknown>;
 
-export function createApp(controller: SubscriptionController): Express {
+export function createApp(controller: ISubscriptionController): Express {
   const app = express();
 
   app.set('trust proxy', 1);

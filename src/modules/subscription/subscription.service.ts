@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
 import { Prisma, type PrismaClient } from '@prisma/client';
-import type { GitHubClient } from '../../integrations/github/github.client.js';
-import type { EmailClient } from '../../integrations/email/email.client.js';
-import type { RepositoryService } from '../repository/repository.service.js';
+import type { IGitHubClient } from '../../integrations/github/github.client.js';
+import type { IEmailClient } from '../../integrations/email/email.client.js';
+import type { IRepositoryService } from '../repository/repository.service.js';
 import type { PaginatedResponse } from '../../common/types/paginated-response.js';
 import { ConflictError, NotFoundError } from '../../common/errors/app-error.js';
 import {
@@ -12,12 +12,24 @@ import {
   type SubscriptionNotificationDto,
 } from './subscription.schema.js';
 
-export class SubscriptionService {
+export interface ISubscriptionService {
+  subscribe(email: string, repo: string): Promise<void>;
+  confirmSubscription(token: string): Promise<void>;
+  unsubscribe(token: string): Promise<void>;
+  getSubscriptions(email: string): Promise<GetSubscriptionResponseDto[]>;
+  getSubscriptionsByRepositoryId(
+    repositoryId: string,
+    page: number,
+    pageSize: number,
+  ): Promise<PaginatedResponse<SubscriptionNotificationDto>>;
+}
+
+export class SubscriptionService implements ISubscriptionService {
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly github: GitHubClient,
-    private readonly email: EmailClient,
-    private readonly repositoryService: RepositoryService,
+    private readonly github: IGitHubClient,
+    private readonly email: IEmailClient,
+    private readonly repositoryService: IRepositoryService,
     private readonly baseUrl: string,
   ) {}
 

@@ -1,7 +1,7 @@
-import type { GitHubClient } from '../integrations/github/github.client.js';
-import type { EmailClient } from '../integrations/email/email.client.js';
-import type { SubscriptionService } from '../modules/subscription/subscription.service.js';
-import type { RepositoryService } from '../modules/repository/repository.service.js';
+import type { IGitHubClient } from '../integrations/github/github.client.js';
+import type { IEmailClient } from '../integrations/email/email.client.js';
+import type { ISubscriptionService } from '../modules/subscription/subscription.service.js';
+import type { IRepositoryService } from '../modules/repository/repository.service.js';
 import type { GetRepoDto } from '../modules/repository/repository.schema.js';
 import { logger } from '../config/logger.js';
 
@@ -12,10 +12,10 @@ export class ScannerJob {
   private timeoutId: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
-    private readonly repositoryService: RepositoryService,
-    private readonly github: GitHubClient,
-    private readonly subscriptionService: SubscriptionService,
-    private readonly email: EmailClient,
+    private readonly repositoryService: IRepositoryService,
+    private readonly github: IGitHubClient,
+    private readonly subscriptionService: ISubscriptionService,
+    private readonly email: IEmailClient,
     private readonly intervalMs: number,
     private readonly baseUrl: string,
   ) {}

@@ -1,9 +1,16 @@
 import type { Request, Response } from 'express';
-import type { SubscriptionService } from './subscription.service.js';
+import type { ISubscriptionService } from './subscription.service.js';
 import type { SubscribeRequest, TokenParams, EmailQuery } from './subscription.schema.js';
 
-export class SubscriptionController {
-  constructor(private readonly service: SubscriptionService) {}
+export interface ISubscriptionController {
+  subscribe(req: Request, res: Response): Promise<void>;
+  confirmSubscription(req: Request, res: Response): Promise<void>;
+  unsubscribe(req: Request, res: Response): Promise<void>;
+  getSubscriptions(req: Request, res: Response): Promise<void>;
+}
+
+export class SubscriptionController implements ISubscriptionController {
+  constructor(private readonly service: ISubscriptionService) {}
 
   async subscribe(req: Request, res: Response): Promise<void> {
     const { email, repo } = req.body as SubscribeRequest;

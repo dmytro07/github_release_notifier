@@ -5,10 +5,15 @@ export type GitHubRepo = RestEndpointMethodTypes['repos']['get']['response']['da
 export type GitHubRelease =
   RestEndpointMethodTypes['repos']['getLatestRelease']['response']['data'];
 
-export class GitHubClient {
+export interface IGitHubClient {
+  getRepo(owner: string, repo: string): Promise<GitHubRepo | null>;
+  getLatestRelease(owner: string, repo: string): Promise<GitHubRelease | null>;
+}
+
+export class GitHubClient implements IGitHubClient {
   private readonly octokit: Octokit;
 
-  constructor(token: string) {
+  constructor(token?: string) {
     this.octokit = new Octokit({ auth: token });
   }
 

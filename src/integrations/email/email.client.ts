@@ -8,7 +8,11 @@ export interface EmailOptions {
   html: string;
 }
 
-export class EmailClient {
+export interface IEmailClient {
+  send(options: EmailOptions): Promise<void>;
+}
+
+export class EmailClient implements IEmailClient {
   private readonly transporter: Transporter;
 
   constructor(

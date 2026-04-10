@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import type { SubscriptionController } from './subscription.controller.js';
+import type { ISubscriptionController } from './subscription.controller.js';
 import { validate } from '../../common/middleware/validate.js';
 import {
   subscribeRequestSchema,
@@ -16,7 +16,7 @@ const subscribeLimiter = rateLimit({
   message: { error: 'Too many subscription requests, please try again later' },
 });
 
-export function createSubscriptionRouter(controller: SubscriptionController): Router {
+export function createSubscriptionRouter(controller: ISubscriptionController): Router {
   const router = Router();
 
   router.post(

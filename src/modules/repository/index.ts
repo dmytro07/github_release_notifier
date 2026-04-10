@@ -1,4 +1,4 @@
-export { RepositoryService } from './repository.service.js';
+export { RepositoryService, type IRepositoryService } from './repository.service.js';
 export {
   createRepoDtoSchema,
   updateRepoDtoSchema,

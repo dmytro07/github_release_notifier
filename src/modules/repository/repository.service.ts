@@ -7,7 +7,17 @@ import {
   type GetRepoDto,
 } from './repository.schema.js';
 
-export class RepositoryService {
+export interface IRepositoryService {
+  findOrCreateRepo(dto: CreateRepoDto): Promise<GetRepoDto>;
+  updateRepo(id: string, dto: UpdateRepoDto): Promise<GetRepoDto>;
+  deleteRepo(id: string): Promise<void>;
+  getReposThatHaveActiveSubscriptions(
+    page: number,
+    pageSize: number,
+  ): Promise<PaginatedResponse<GetRepoDto>>;
+}
+
+export class RepositoryService implements IRepositoryService {
   constructor(private readonly prisma: PrismaClient) {}
 
   async findOrCreateRepo(dto: CreateRepoDto): Promise<GetRepoDto> {
