@@ -17,8 +17,10 @@ export class SubscriptionController {
     res.sendStatus(200);
   }
 
-  async unsubscribe(_req: Request, res: Response): Promise<void> {
-    res.sendStatus(501);
+  async unsubscribe(req: Request, res: Response): Promise<void> {
+    const { token } = req.params as TokenParams;
+    await this.service.unsubscribe(token);
+    res.sendStatus(200);
   }
 
   async getSubscriptions(_req: Request, res: Response): Promise<void> {

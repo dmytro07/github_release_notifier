@@ -27,6 +27,7 @@ const mockSubscription = {
   findFirst: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
+  delete: vi.fn(),
 };
 
 const prisma = { subscription: mockSubscription } as unknown as PrismaClient;
@@ -214,6 +215,38 @@ describe('SubscriptionService', () => {
       mockSubscription.update.mockRejectedValue(dbError);
 
       await expect(service.confirmSubscription(confirmationToken)).rejects.toThrow(dbError);
+    });
+  });
+
+  describe('unsubscribe', () => {
+    const unsubscribeToken = '550e8400-e29b-41d4-a716-446655440002';
+
+    it('should delete subscription by unsubscribeToken', async () => {
+      mockSubscription.delete.mockResolvedValue({});
+
+      await service.unsubscribe(unsubscribeToken);
+
+      expect(mockSubscription.delete).toHaveBeenCalledWith({
+        where: { unsubscribeToken },
+      });
+    });
+
+    it('should throw NotFoundError when token not found', async () => {
+      const p2025Error = new Prisma.PrismaClientKnownRequestError('Record not found', {
+        code: 'P2025',
+        clientVersion: '6.0.0',
+      });
+      mockSubscription.delete.mockRejectedValue(p2025Error);
+
+      await expect(service.unsubscribe(unsubscribeToken)).rejects.toThrow(NotFoundError);
+      await expect(service.unsubscribe(unsubscribeToken)).rejects.toThrow('Token not found');
+    });
+
+    it('should propagate non-P2025 errors', async () => {
+      const dbError = new Error('DB connection lost');
+      mockSubscription.delete.mockRejectedValue(dbError);
+
+      await expect(service.unsubscribe(unsubscribeToken)).rejects.toThrow(dbError);
     });
   });
 });

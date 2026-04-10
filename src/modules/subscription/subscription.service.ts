@@ -101,8 +101,20 @@ export class SubscriptionService {
     }
   }
 
-  async unsubscribe(_token: string): Promise<void> {
-    throw new Error('Not implemented');
+  async unsubscribe(token: string): Promise<void> {
+    try {
+      await this.prisma.subscription.delete({
+        where: { unsubscribeToken: token },
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2025'
+      ) {
+        throw new NotFoundError('Token not found');
+      }
+      throw err;
+    }
   }
 
   async getSubscriptions(
