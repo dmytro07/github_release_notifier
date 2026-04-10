@@ -1,16 +1,31 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        DATABASE_URL: postgresql://build:build@localhost:5432/placeholder
     ports:
-      - '3000:3000'
-    env_file: .env
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/release_notifier?schema=public
+      BASE_URL: http://localhost:3000
+      PORT: 3000
+      NODE_ENV: production
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      FROM_EMAIL: noreply@releases-api.app
+      SCANNER_INTERVAL_MS: 300000
+      CORS_ORIGIN: "*"
     depends_on:
       postgres:
         condition: service_healthy
       mailhog:
         condition: service_started
     healthcheck:
-      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/health']
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -23,11 +38,11 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: release_notifier
     ports:
-      - '5432:5432'
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -35,8 +50,8 @@ services:
   mailhog:
     image: mailhog/mailhog:latest
     ports:
-      - '1025:1025'
-      - '8025:8025'
+      - "1025:1025"
+      - "8025:8025"
 
 volumes:
   pgdata:

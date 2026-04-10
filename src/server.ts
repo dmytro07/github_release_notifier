@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import { createApp } from './app.js';
@@ -8,7 +9,8 @@ import { SubscriptionService } from './modules/subscription/subscription.service
 import { SubscriptionController } from './modules/subscription/subscription.controller.js';
 import { ScannerJob } from './jobs/scanner.job.js';
 
-const prisma = new PrismaClient();
+const adapter = new PrismaPg({ connectionString: env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 const github = new GitHubClient(env.GITHUB_TOKEN);
 const email = new EmailClient(
   env.SMTP_HOST,
