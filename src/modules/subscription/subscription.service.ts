@@ -84,8 +84,21 @@ export class SubscriptionService {
     });
   }
 
-  async confirmSubscription(_token: string): Promise<void> {
-    throw new Error('Not implemented');
+  async confirmSubscription(token: string): Promise<void> {
+    try {
+      await this.prisma.subscription.update({
+        where: { confirmationToken: token },
+        data: { confirmed: true },
+      });
+    } catch (err) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2025'
+      ) {
+        throw new NotFoundError('Token not found');
+      }
+      throw err;
+    }
   }
 
   async unsubscribe(_token: string): Promise<void> {

@@ -26,6 +26,7 @@ const repoRecord = {
 const mockSubscription = {
   findFirst: vi.fn(),
   create: vi.fn(),
+  update: vi.fn(),
 };
 
 const prisma = { subscription: mockSubscription } as unknown as PrismaClient;
@@ -178,6 +179,41 @@ describe('SubscriptionService', () => {
       const sendCall = (email.send as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(sendCall.html).toContain(`${baseUrl}/api/confirm/`);
       expect(sendCall.html).toContain(`${baseUrl}/api/unsubscribe/`);
+    });
+  });
+
+  describe('confirmSubscription', () => {
+    const confirmationToken = '550e8400-e29b-41d4-a716-446655440001';
+
+    it('should set confirmed to true', async () => {
+      mockSubscription.update.mockResolvedValue({});
+
+      await service.confirmSubscription(confirmationToken);
+
+      expect(mockSubscription.update).toHaveBeenCalledWith({
+        where: { confirmationToken },
+        data: { confirmed: true },
+      });
+    });
+
+    it('should throw NotFoundError when token not found', async () => {
+      const p2025Error = new Prisma.PrismaClientKnownRequestError('Record not found', {
+        code: 'P2025',
+        clientVersion: '6.0.0',
+      });
+      mockSubscription.update.mockRejectedValue(p2025Error);
+
+      await expect(service.confirmSubscription(confirmationToken)).rejects.toThrow(NotFoundError);
+      await expect(service.confirmSubscription(confirmationToken)).rejects.toThrow(
+        'Token not found',
+      );
+    });
+
+    it('should propagate non-P2025 errors', async () => {
+      const dbError = new Error('DB connection lost');
+      mockSubscription.update.mockRejectedValue(dbError);
+
+      await expect(service.confirmSubscription(confirmationToken)).rejects.toThrow(dbError);
     });
   });
 });

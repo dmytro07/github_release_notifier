@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import type { SubscriptionService } from './subscription.service.js';
-import type { SubscribeRequest } from './subscription.schema.js';
+import type { SubscribeRequest, TokenParams } from './subscription.schema.js';
 
 export class SubscriptionController {
   constructor(private readonly service: SubscriptionService) {}
@@ -11,8 +11,10 @@ export class SubscriptionController {
     res.sendStatus(200);
   }
 
-  async confirmSubscription(_req: Request, res: Response): Promise<void> {
-    res.sendStatus(501);
+  async confirmSubscription(req: Request, res: Response): Promise<void> {
+    const { token } = req.params as TokenParams;
+    await this.service.confirmSubscription(token);
+    res.sendStatus(200);
   }
 
   async unsubscribe(_req: Request, res: Response): Promise<void> {
