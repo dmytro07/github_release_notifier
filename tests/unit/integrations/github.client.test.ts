@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { Octokit } from '@octokit/rest';
 import { GitHubClient } from '../../../src/integrations/github/github.client.js';
+import { GitHubRateLimitError } from '../../../src/common/errors/app-error.js';
 
 vi.mock('@octokit/rest', () => ({
   Octokit: vi.fn(),
@@ -76,6 +77,76 @@ describe('GitHubClient', () => {
       mockGetLatestRelease.mockRejectedValue(error);
 
       await expect(client.getLatestRelease('owner', 'repo')).rejects.toEqual(error);
+    });
+  });
+
+  describe('rate limit handling', () => {
+    const nowS = 1_700_000_000;
+
+    beforeEach(() => {
+      vi.spyOn(Date, 'now').mockReturnValue(nowS * 1000);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    function rateLimitError(status: number, resetEpoch?: number) {
+      return {
+        status,
+        ...(resetEpoch != null && {
+          response: { headers: { 'x-ratelimit-reset': String(resetEpoch) } },
+        }),
+      };
+    }
+
+    it('should throw GitHubRateLimitError on 429 with computed retryAfterMs', async () => {
+      const resetEpoch = nowS + 300;
+      mockGet.mockRejectedValue(rateLimitError(429, resetEpoch));
+
+      const err = await client.getRepo('owner', 'repo').catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(GitHubRateLimitError);
+      expect((err as GitHubRateLimitError).retryAfterMs).toBe(300_000);
+    });
+
+    it('should fall back to 60 000 ms when 429 has no reset header', async () => {
+      mockGet.mockRejectedValue(rateLimitError(429));
+
+      const err = await client.getRepo('owner', 'repo').catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(GitHubRateLimitError);
+      expect((err as GitHubRateLimitError).retryAfterMs).toBe(60_000);
+    });
+
+    it('should throw GitHubRateLimitError on 403 with reset header', async () => {
+      const resetEpoch = nowS + 600;
+      mockGetLatestRelease.mockRejectedValue(rateLimitError(403, resetEpoch));
+
+      const err = await client.getLatestRelease('owner', 'repo').catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(GitHubRateLimitError);
+      expect((err as GitHubRateLimitError).retryAfterMs).toBe(600_000);
+    });
+
+    it('should clamp retryAfterMs to 0 when reset is in the past', async () => {
+      const resetEpoch = nowS - 10;
+      mockGet.mockRejectedValue(rateLimitError(429, resetEpoch));
+
+      const err = await client.getRepo('owner', 'repo').catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(GitHubRateLimitError);
+      expect((err as GitHubRateLimitError).retryAfterMs).toBe(0);
+    });
+
+    it('should throw GitHubRateLimitError from getLatestRelease on 429', async () => {
+      const resetEpoch = nowS + 120;
+      mockGetLatestRelease.mockRejectedValue(rateLimitError(429, resetEpoch));
+
+      const err = await client.getLatestRelease('owner', 'repo').catch((e: unknown) => e);
+
+      expect(err).toBeInstanceOf(GitHubRateLimitError);
+      expect((err as GitHubRateLimitError).retryAfterMs).toBe(120_000);
     });
   });
 });

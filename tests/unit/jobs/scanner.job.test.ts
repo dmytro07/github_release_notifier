@@ -6,6 +6,7 @@ import type { SubscriptionService } from '../../../src/modules/subscription/subs
 import type { EmailClient } from '../../../src/integrations/email/email.client.js';
 import type { GetRepoDto } from '../../../src/modules/repository/repository.schema.js';
 import type { PaginatedResponse } from '../../../src/common/types/paginated-response.js';
+import { GitHubRateLimitError } from '../../../src/common/errors/app-error.js';
 
 vi.mock('../../../src/config/logger.js', () => ({
   logger: { info: vi.fn(), error: vi.fn(), debug: vi.fn(), warn: vi.fn() },
@@ -245,6 +246,69 @@ describe('ScannerJob', () => {
       await triggerRun();
 
       expect(repositoryService.getReposThatHaveActiveSubscriptions).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('run -- rate limit handling', () => {
+    it('should pause and exit scan cycle when rate limit is hit', async () => {
+      const repoA = makeRepo();
+      const repoB = makeRepo({ id: 'id-b', owner: 'nodejs', repo: 'node' });
+
+      (repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(paginated([repoA, repoB], false));
+
+      (github.getLatestRelease as ReturnType<typeof vi.fn>)
+        .mockRejectedValueOnce(new GitHubRateLimitError(5_000));
+
+      job.start();
+      await triggerRun();
+
+      expect(github.getLatestRelease).toHaveBeenCalledTimes(1);
+      expect(github.getLatestRelease).toHaveBeenCalledWith('octocat', 'hello-world');
+
+      const { logger } = await import('../../../src/config/logger.js');
+      expect(logger.warn).toHaveBeenCalledWith(
+        { retryAfterMs: 5_000 },
+        'GitHub rate limit hit, pausing scanner',
+      );
+    });
+
+    it('should re-schedule after rate-limit pause completes', async () => {
+      const repo = makeRepo();
+
+      (repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(paginated([repo], false))
+        .mockResolvedValueOnce(paginated([], false));
+
+      (github.getLatestRelease as ReturnType<typeof vi.fn>)
+        .mockRejectedValueOnce(new GitHubRateLimitError(5_000))
+        .mockResolvedValueOnce(null);
+
+      job.start();
+
+      await triggerRun();
+
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      await vi.advanceTimersByTimeAsync(intervalMs);
+
+      expect(repositoryService.getReposThatHaveActiveSubscriptions).toHaveBeenCalledTimes(2);
+    });
+
+    it('should not send emails for the rate-limited repo', async () => {
+      const repo = makeRepo({ lastSeenTag: 'v1.0.0' });
+
+      (repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(paginated([repo], false));
+
+      (github.getLatestRelease as ReturnType<typeof vi.fn>)
+        .mockRejectedValueOnce(new GitHubRateLimitError(5_000));
+
+      job.start();
+      await triggerRun();
+
+      expect(repositoryService.updateRepo).not.toHaveBeenCalled();
+      expect(email.send).not.toHaveBeenCalled();
     });
   });
 

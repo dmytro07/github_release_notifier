@@ -14,6 +14,7 @@ import { SubscriptionService } from '../../../../src/modules/subscription/subscr
 import { RepositoryService } from '../../../../src/modules/repository/repository.service.js';
 import type { GitHubClient } from '../../../../src/integrations/github/github.client.js';
 import type { EmailClient } from '../../../../src/integrations/email/email.client.js';
+import { GitHubRateLimitError } from '../../../../src/common/errors/app-error.js';
 import { getPrisma, disconnectPrisma } from '../../../helpers/setup.js';
 import { truncateAllTables } from '../../../helpers/cleanup.js';
 
@@ -147,6 +148,18 @@ describe('Subscription Routes (integration)', () => {
 
       expect(res.status).toBe(404);
       expect(res.body.error).toMatch(/not found/i);
+    });
+
+    it('should return 503 with Retry-After when GitHub rate-limited', async () => {
+      github.getRepo.mockRejectedValue(new GitHubRateLimitError(120_000));
+
+      const res = await request(app)
+        .post('/api/subscribe')
+        .send({ email: testEmail, repo: testRepo });
+
+      expect(res.status).toBe(503);
+      expect(res.headers['retry-after']).toBe('120');
+      expect(res.body.error).toBe('Service temporarily unavailable, please try again later');
     });
   });
 
