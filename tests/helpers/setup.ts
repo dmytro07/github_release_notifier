@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { inject } from 'vitest';
 
 let prisma: PrismaClient;
@@ -6,9 +7,8 @@ let prisma: PrismaClient;
 export function getPrisma(): PrismaClient {
   if (!prisma) {
     const databaseUrl = inject('databaseUrl');
-    prisma = new PrismaClient({
-      datasources: { db: { url: databaseUrl } },
-    });
+    const adapter = new PrismaPg({ connectionString: databaseUrl });
+    prisma = new PrismaClient({ adapter });
   }
   return prisma;
 }
