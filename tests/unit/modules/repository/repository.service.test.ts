@@ -23,6 +23,7 @@ const mockRepository = {
   update: vi.fn(),
   delete: vi.fn(),
   findMany: vi.fn(),
+  count: vi.fn(),
 };
 
 const prisma = { repository: mockRepository } as unknown as PrismaClient;
@@ -127,7 +128,9 @@ describe('RepositoryService', () => {
   });
 
   describe('getReposThatHaveActiveSubscriptions', () => {
-    it('should return an array of parsed GetRepoDto objects', async () => {
+    const expectedWhere = { subscriptions: { some: { confirmed: true } } };
+
+    it('should return a paginated response of parsed GetRepoDto objects', async () => {
       const records = [
         makeRepoRecord(),
         makeRepoRecord({
@@ -138,28 +141,57 @@ describe('RepositoryService', () => {
         }),
       ];
       mockRepository.findMany.mockResolvedValue(records);
+      mockRepository.count.mockResolvedValue(2);
 
-      const result = await service.getReposThatHaveActiveSubscriptions();
+      const result = await service.getReposThatHaveActiveSubscriptions(1, 10);
 
-      expect(result).toEqual(records);
-      expect(result).toHaveLength(2);
+      expect(result).toEqual({
+        data: records,
+        total: 2,
+        page: 1,
+        pageSize: 10,
+        hasMore: false,
+      });
     });
 
-    it('should return an empty array when no repos match', async () => {
-      mockRepository.findMany.mockResolvedValue([]);
+    it('should indicate hasMore when more pages exist', async () => {
+      mockRepository.findMany.mockResolvedValue([makeRepoRecord()]);
+      mockRepository.count.mockResolvedValue(3);
 
-      const result = await service.getReposThatHaveActiveSubscriptions();
+      const result = await service.getReposThatHaveActiveSubscriptions(1, 1);
 
-      expect(result).toEqual([]);
+      expect(result.hasMore).toBe(true);
+      expect(result.total).toBe(3);
     });
 
-    it('should query with the correct subscriptions filter', async () => {
+    it('should return empty data when no repos match', async () => {
       mockRepository.findMany.mockResolvedValue([]);
+      mockRepository.count.mockResolvedValue(0);
 
-      await service.getReposThatHaveActiveSubscriptions();
+      const result = await service.getReposThatHaveActiveSubscriptions(1, 10);
+
+      expect(result).toEqual({
+        data: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        hasMore: false,
+      });
+    });
+
+    it('should query with correct filter, skip, and take', async () => {
+      mockRepository.findMany.mockResolvedValue([]);
+      mockRepository.count.mockResolvedValue(0);
+
+      await service.getReposThatHaveActiveSubscriptions(2, 5);
 
       expect(mockRepository.findMany).toHaveBeenCalledWith({
-        where: { subscriptions: { some: { confirmed: true } } },
+        where: expectedWhere,
+        skip: 5,
+        take: 5,
+      });
+      expect(mockRepository.count).toHaveBeenCalledWith({
+        where: expectedWhere,
       });
     });
 
@@ -167,7 +199,7 @@ describe('RepositoryService', () => {
       const error = new Error('DB connection lost');
       mockRepository.findMany.mockRejectedValue(error);
 
-      await expect(service.getReposThatHaveActiveSubscriptions()).rejects.toThrow(error);
+      await expect(service.getReposThatHaveActiveSubscriptions(1, 10)).rejects.toThrow(error);
     });
   });
 });

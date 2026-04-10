@@ -23,7 +23,7 @@ const email = new EmailClient(
 const repositoryService = new RepositoryService(prisma);
 const subscriptionService = new SubscriptionService(prisma, github, email, repositoryService, env.BASE_URL);
 const controller = new SubscriptionController(subscriptionService);
-const scanner = new ScannerJob(prisma, repositoryService, github, subscriptionService, email, env.SCANNER_INTERVAL_MS);
+const scanner = new ScannerJob(repositoryService, github, subscriptionService, email, env.SCANNER_INTERVAL_MS, env.BASE_URL);
 
 const app = createApp(controller);
 

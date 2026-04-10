@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import type { PaginatedResponse } from '../../common/types/paginated-response.js';
 import {
   getRepoDtoSchema,
   type CreateRepoDto,
@@ -32,11 +33,26 @@ export class RepositoryService {
     await this.prisma.repository.delete({ where: { id } });
   }
 
-  async getReposThatHaveActiveSubscriptions(): Promise<GetRepoDto[]> {
-    const records = await this.prisma.repository.findMany({
-      where: { subscriptions: { some: { confirmed: true } } },
-    });
+  async getReposThatHaveActiveSubscriptions(
+    page: number,
+    pageSize: number,
+  ): Promise<PaginatedResponse<GetRepoDto>> {
+    const where = { subscriptions: { some: { confirmed: true } } };
+    const [records, total] = await Promise.all([
+      this.prisma.repository.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.repository.count({ where }),
+    ]);
 
-    return records.map((r) => getRepoDtoSchema.parse(r));
+    return {
+      data: records.map((r) => getRepoDtoSchema.parse(r)),
+      total,
+      page,
+      pageSize,
+      hasMore: page * pageSize < total,
+    };
   }
 }

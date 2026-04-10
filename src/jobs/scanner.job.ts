@@ -1,20 +1,23 @@
-import type { PrismaClient } from '@prisma/client';
 import type { GitHubClient } from '../integrations/github/github.client.js';
 import type { EmailClient } from '../integrations/email/email.client.js';
 import type { SubscriptionService } from '../modules/subscription/subscription.service.js';
 import type { RepositoryService } from '../modules/repository/repository.service.js';
+import type { GetRepoDto } from '../modules/repository/repository.schema.js';
 import { logger } from '../config/logger.js';
+
+const REPO_PAGE_SIZE = 50;
+const SUB_PAGE_SIZE = 50;
 
 export class ScannerJob {
   private timeoutId: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
-    private readonly prisma: PrismaClient,
     private readonly repositoryService: RepositoryService,
     private readonly github: GitHubClient,
     private readonly subscriptionService: SubscriptionService,
     private readonly email: EmailClient,
     private readonly intervalMs: number,
+    private readonly baseUrl: string,
   ) {}
 
   start(): void {
@@ -36,53 +39,75 @@ export class ScannerJob {
 
   private async run(): Promise<void> {
     try {
-      const repositories = await this.repositoryService.getReposThatHaveActiveSubscriptions();
+      let repoPage = 1;
+      let hasMoreRepos = true;
 
-      for (const repo of repositories) {
-        const fullName = `${repo.owner}/${repo.repo}`;
-        try {
-          const release = await this.github.getLatestRelease(repo.owner, repo.repo);
-          if (!release || release.tagName === repo.lastSeenTag) {
-            continue;
-          }
+      while (hasMoreRepos) {
+        const reposResult = await this.repositoryService.getReposThatHaveActiveSubscriptions(
+          repoPage,
+          REPO_PAGE_SIZE,
+        );
 
-          logger.info({ repo: fullName, tag: release.tagName }, 'New release detected');
-
-          await this.repositoryService.updateRepo({
-            id: repo.id,
-            lastSeenTag: release.tagName,
-          });
-
-          const subscriptions = await this.prisma.subscription.findMany({
-            where: { repositoryId: repo.id, confirmed: true },
-          });
-
-          for (const sub of subscriptions) {
-            try {
-              await this.email.send({
-                to: sub.email,
-                subject: `New release: ${fullName} ${release.tagName}`,
-                html: `<p>A new release <strong>${release.tagName}</strong> is available for <strong>${fullName}</strong>.</p>
-                       <p><a href="https://github.com/${fullName}/releases/tag/${release.tagName}">View release</a></p>`,
-              });
-            } catch (emailErr) {
-              logger.error(
-                { err: emailErr, email: sub.email, repo: fullName },
-                'Failed to send notification email',
-              );
-            }
-          }
-        } catch (repoErr) {
-          logger.error(
-            { err: repoErr, repo: fullName },
-            'Failed to check repository for new releases',
-          );
+        for (const repo of reposResult.data) {
+          await this.processRepo(repo);
         }
+
+        hasMoreRepos = reposResult.hasMore;
+        repoPage++;
       }
     } catch (err) {
       logger.error(err, 'Scanner loop error');
     } finally {
       this.scheduleNext();
+    }
+  }
+
+  private async processRepo(repo: GetRepoDto): Promise<void> {
+    const fullName = `${repo.owner}/${repo.repo}`;
+    try {
+      const release = await this.github.getLatestRelease(repo.owner, repo.repo);
+      if (!release || release.tag_name === repo.lastSeenTag) {
+        return;
+      }
+
+      logger.info({ repo: fullName, tag: release.tag_name }, 'New release detected');
+
+      await this.repositoryService.updateRepo(repo.id, {
+        lastSeenTag: release.tag_name,
+      });
+
+      let subPage = 1;
+      let hasMoreSubs = true;
+
+      while (hasMoreSubs) {
+        const subsResult = await this.subscriptionService.getSubscriptionsByRepositoryId(
+          repo.id,
+          subPage,
+          SUB_PAGE_SIZE,
+        );
+
+        for (const sub of subsResult.data) {
+          try {
+            await this.email.send({
+              to: sub.email,
+              subject: `New release: ${fullName} ${release.tag_name}`,
+              html: `<p>A new release <strong>${release.tag_name}</strong> is available for <strong>${fullName}</strong>.</p>
+                     <p><a href="https://github.com/${fullName}/releases/tag/${release.tag_name}">View release</a></p>
+                     <p><a href="${this.baseUrl}/api/unsubscribe/${sub.unsubscribeToken}">Unsubscribe</a></p>`,
+            });
+          } catch (emailErr) {
+            logger.error(
+              { err: emailErr, email: sub.email, repo: fullName },
+              'Failed to send notification email',
+            );
+          }
+        }
+
+        hasMoreSubs = subsResult.hasMore;
+        subPage++;
+      }
+    } catch (repoErr) {
+      logger.error({ err: repoErr, repo: fullName }, 'Failed to check repository for new releases');
     }
   }
 }

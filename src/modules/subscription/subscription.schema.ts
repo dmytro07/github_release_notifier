@@ -17,8 +17,7 @@ export const subscribeRequestSchema = z.object({
     })
     .refine(({ owner }) => OWNER_RE.test(owner), 'Invalid GitHub owner name')
     .refine(
-      ({ repo }) =>
-        REPO_RE.test(repo) && repo !== '.' && repo !== '..' && !repo.endsWith('.git'),
+      ({ repo }) => REPO_RE.test(repo) && repo !== '.' && repo !== '..' && !repo.endsWith('.git'),
       'Invalid GitHub repository name',
     )
     .transform(({ owner, repo }) => `${owner}/${repo}`),
@@ -38,7 +37,7 @@ export const emailQuerySchema = z.object({
 
 export type EmailQuery = z.infer<typeof emailQuerySchema>;
 
-export const getSubscriptionDtoSchema = z
+export const getSubscriptionResponseDtoSchema = z
   .object({
     email: z.string(),
     confirmed: z.boolean(),
@@ -55,4 +54,11 @@ export const getSubscriptionDtoSchema = z
     last_seen_tag: data.repository.lastSeenTag,
   }));
 
-export type GetSubscriptionDto = z.output<typeof getSubscriptionDtoSchema>;
+export type GetSubscriptionResponseDto = z.output<typeof getSubscriptionResponseDtoSchema>;
+
+export const subscriptionNotificationDtoSchema = z.object({
+  email: z.string(),
+  unsubscribeToken: z.string(),
+});
+
+export type SubscriptionNotificationDto = z.infer<typeof subscriptionNotificationDtoSchema>;

@@ -3,8 +3,14 @@ import { Prisma, type PrismaClient } from '@prisma/client';
 import type { GitHubClient } from '../../integrations/github/github.client.js';
 import type { EmailClient } from '../../integrations/email/email.client.js';
 import type { RepositoryService } from '../repository/repository.service.js';
+import type { PaginatedResponse } from '../../common/types/paginated-response.js';
 import { ConflictError, NotFoundError } from '../../common/errors/app-error.js';
-import { getSubscriptionDtoSchema, type GetSubscriptionDto } from './subscription.schema.js';
+import {
+  getSubscriptionResponseDtoSchema,
+  subscriptionNotificationDtoSchema,
+  type GetSubscriptionResponseDto,
+  type SubscriptionNotificationDto,
+} from './subscription.schema.js';
 
 export class SubscriptionService {
   constructor(
@@ -50,38 +56,27 @@ export class SubscriptionService {
         },
       });
     } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === 'P2002'
-      ) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         throw new ConflictError('Email already subscribed to this repository');
       }
       throw err;
     }
 
-    await this.sendConfirmationEmail(
-      email,
-      repo,
-      confirmationToken,
-      unsubscribeToken,
-    );
+    await this.sendConfirmationEmail(email, repo, confirmationToken);
   }
 
   private async sendConfirmationEmail(
     email: string,
     repo: string,
     confirmationToken: string,
-    unsubscribeToken: string,
   ): Promise<void> {
     const confirmUrl = `${this.baseUrl}/api/confirm/${confirmationToken}`;
-    const unsubscribeUrl = `${this.baseUrl}/api/unsubscribe/${unsubscribeToken}`;
 
     await this.email.send({
       to: email,
       subject: `Confirm your subscription to ${repo}`,
       html: `<p>Please confirm your subscription to <b>${repo}</b> releases.</p>
-             <p><a href="${confirmUrl}">Confirm subscription</a></p>
-             <p><a href="${unsubscribeUrl}">Unsubscribe</a></p>`,
+             <p><a href="${confirmUrl}">Confirm subscription</a></p>`,
     });
   }
 
@@ -92,10 +87,7 @@ export class SubscriptionService {
         data: { confirmed: true },
       });
     } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === 'P2025'
-      ) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
         throw new NotFoundError('Token not found');
       }
       throw err;
@@ -108,17 +100,14 @@ export class SubscriptionService {
         where: { unsubscribeToken: token },
       });
     } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === 'P2025'
-      ) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
         throw new NotFoundError('Token not found');
       }
       throw err;
     }
   }
 
-  async getSubscriptions(email: string): Promise<GetSubscriptionDto[]> {
+  async getSubscriptions(email: string): Promise<GetSubscriptionResponseDto[]> {
     const subscriptions = await this.prisma.subscription.findMany({
       where: { email, confirmed: true },
       select: {
@@ -128,6 +117,31 @@ export class SubscriptionService {
       },
     });
 
-    return subscriptions.map((s) => getSubscriptionDtoSchema.parse(s));
+    return subscriptions.map((s) => getSubscriptionResponseDtoSchema.parse(s));
+  }
+
+  async getSubscriptionsByRepositoryId(
+    repositoryId: string,
+    page: number,
+    pageSize: number,
+  ): Promise<PaginatedResponse<SubscriptionNotificationDto>> {
+    const where = { repositoryId, confirmed: true };
+    const [records, total] = await Promise.all([
+      this.prisma.subscription.findMany({
+        where,
+        select: { email: true, unsubscribeToken: true },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.subscription.count({ where }),
+    ]);
+
+    return {
+      data: records.map((r) => subscriptionNotificationDtoSchema.parse(r)),
+      total,
+      page,
+      pageSize,
+      hasMore: page * pageSize < total,
+    };
   }
 }

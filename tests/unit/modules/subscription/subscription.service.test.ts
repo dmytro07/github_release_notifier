@@ -26,6 +26,7 @@ const repoRecord = {
 const mockSubscription = {
   findFirst: vi.fn(),
   findMany: vi.fn(),
+  count: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
   delete: vi.fn(),
@@ -90,24 +91,6 @@ describe('SubscriptionService', () => {
         subject: `Confirm your subscription to ${testRepo}`,
         html: expect.stringContaining('/api/confirm/'),
       });
-    });
-
-    it('should include unsubscribe link in confirmation email', async () => {
-      mockSubscription.findFirst.mockResolvedValue(null);
-      (github.getRepo as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 1 });
-      (repositoryService.findOrCreateRepo as ReturnType<typeof vi.fn>).mockResolvedValue(
-        repoRecord,
-      );
-      mockSubscription.create.mockResolvedValue({});
-      (email.send as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
-
-      await service.subscribe(testEmail, testRepo);
-
-      expect(email.send).toHaveBeenCalledWith(
-        expect.objectContaining({
-          html: expect.stringContaining('/api/unsubscribe/'),
-        }),
-      );
     });
 
     it('should throw 409 when email is already subscribed to the repo', async () => {
@@ -180,7 +163,7 @@ describe('SubscriptionService', () => {
 
       const sendCall = (email.send as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(sendCall.html).toContain(`${baseUrl}/api/confirm/`);
-      expect(sendCall.html).toContain(`${baseUrl}/api/unsubscribe/`);
+      expect(sendCall.html).not.toContain('/api/unsubscribe/');
     });
   });
 
@@ -298,6 +281,73 @@ describe('SubscriptionService', () => {
       });
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('getSubscriptionsByRepositoryId', () => {
+    const subRecords = [
+      { email: 'a@example.com', unsubscribeToken: 'token-a' },
+      { email: 'b@example.com', unsubscribeToken: 'token-b' },
+    ];
+
+    it('should return a paginated response of subscription notifications', async () => {
+      mockSubscription.findMany.mockResolvedValue(subRecords);
+      mockSubscription.count.mockResolvedValue(2);
+
+      const result = await service.getSubscriptionsByRepositoryId(repoId, 1, 10);
+
+      expect(mockSubscription.findMany).toHaveBeenCalledWith({
+        where: { repositoryId: repoId, confirmed: true },
+        select: { email: true, unsubscribeToken: true },
+        skip: 0,
+        take: 10,
+      });
+
+      expect(mockSubscription.count).toHaveBeenCalledWith({
+        where: { repositoryId: repoId, confirmed: true },
+      });
+
+      expect(result).toEqual({
+        data: subRecords,
+        total: 2,
+        page: 1,
+        pageSize: 10,
+        hasMore: false,
+      });
+    });
+
+    it('should indicate hasMore when more pages exist', async () => {
+      mockSubscription.findMany.mockResolvedValue(subRecords);
+      mockSubscription.count.mockResolvedValue(5);
+
+      const result = await service.getSubscriptionsByRepositoryId(repoId, 1, 2);
+
+      expect(result.hasMore).toBe(true);
+      expect(result.total).toBe(5);
+    });
+
+    it('should return empty data when no subscriptions exist', async () => {
+      mockSubscription.findMany.mockResolvedValue([]);
+      mockSubscription.count.mockResolvedValue(0);
+
+      const result = await service.getSubscriptionsByRepositoryId(repoId, 1, 10);
+
+      expect(result).toEqual({
+        data: [],
+        total: 0,
+        page: 1,
+        pageSize: 10,
+        hasMore: false,
+      });
+    });
+
+    it('should propagate Prisma errors', async () => {
+      const error = new Error('DB connection lost');
+      mockSubscription.findMany.mockRejectedValue(error);
+
+      await expect(
+        service.getSubscriptionsByRepositoryId(repoId, 1, 10),
+      ).rejects.toThrow(error);
     });
   });
 });
