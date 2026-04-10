@@ -8,12 +8,14 @@ generator client {
 
 model Repository {
   id            String         @id @default(uuid()) @map("id")
-  ownerRepo     String         @unique @map("owner_repo")
+  owner         String         @map("owner")
+  repo          String         @map("repo")
   lastSeenTag   String?        @map("last_seen_tag")
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
   subscriptions Subscription[]
 
+  @@unique([owner, repo], map: "repositories_owner_repo_key")
   @@map("repositories")
 }
 
