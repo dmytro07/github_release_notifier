@@ -38,7 +38,8 @@ export class ScannerJob {
 
       for (const repo of repositories) {
         try {
-          const release = await this.github.getLatestRelease(repo.ownerRepo);
+          const [owner, repoName] = repo.ownerRepo.split('/');
+          const release = await this.github.getLatestRelease(owner, repoName);
           if (!release || release.tagName === repo.lastSeenTag) {
             continue;
           }
