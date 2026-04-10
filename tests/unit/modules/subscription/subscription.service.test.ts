@@ -25,6 +25,7 @@ const repoRecord = {
 
 const mockSubscription = {
   findFirst: vi.fn(),
+  findMany: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
   delete: vi.fn(),
@@ -247,6 +248,56 @@ describe('SubscriptionService', () => {
       mockSubscription.delete.mockRejectedValue(dbError);
 
       await expect(service.unsubscribe(unsubscribeToken)).rejects.toThrow(dbError);
+    });
+  });
+
+  describe('getSubscriptions', () => {
+    it('should return confirmed subscriptions for a given email', async () => {
+      mockSubscription.findMany.mockResolvedValue([
+        {
+          email: testEmail,
+          confirmed: true,
+          repository: { owner: testOwner, repo: testRepoName, lastSeenTag: 'v1.0.0' },
+        },
+        {
+          email: testEmail,
+          confirmed: true,
+          repository: { owner: 'facebook', repo: 'react', lastSeenTag: null },
+        },
+      ]);
+
+      const result = await service.getSubscriptions(testEmail);
+
+      expect(mockSubscription.findMany).toHaveBeenCalledWith({
+        where: { email: testEmail, confirmed: true },
+        select: {
+          email: true,
+          confirmed: true,
+          repository: { select: { owner: true, repo: true, lastSeenTag: true } },
+        },
+      });
+
+      expect(result).toEqual([
+        { email: testEmail, repo: `${testOwner}/${testRepoName}`, confirmed: true, last_seen_tag: 'v1.0.0' },
+        { email: testEmail, repo: 'facebook/react', confirmed: true, last_seen_tag: null },
+      ]);
+    });
+
+    it('should return empty array when no subscriptions exist', async () => {
+      mockSubscription.findMany.mockResolvedValue([]);
+
+      const result = await service.getSubscriptions(testEmail);
+
+      expect(mockSubscription.findMany).toHaveBeenCalledWith({
+        where: { email: testEmail, confirmed: true },
+        select: {
+          email: true,
+          confirmed: true,
+          repository: { select: { owner: true, repo: true, lastSeenTag: true } },
+        },
+      });
+
+      expect(result).toEqual([]);
     });
   });
 });

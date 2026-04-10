@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import type { SubscriptionService } from './subscription.service.js';
-import type { SubscribeRequest, TokenParams } from './subscription.schema.js';
+import type { SubscribeRequest, TokenParams, EmailQuery } from './subscription.schema.js';
 
 export class SubscriptionController {
   constructor(private readonly service: SubscriptionService) {}
@@ -23,7 +23,9 @@ export class SubscriptionController {
     res.sendStatus(200);
   }
 
-  async getSubscriptions(_req: Request, res: Response): Promise<void> {
-    res.sendStatus(501);
+  async getSubscriptions(req: Request, res: Response): Promise<void> {
+    const { email } = req.query as EmailQuery;
+    const subscriptions = await this.service.getSubscriptions(email);
+    res.json(subscriptions);
   }
 }

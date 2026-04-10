@@ -4,6 +4,7 @@ import type { GitHubClient } from '../../integrations/github/github.client.js';
 import type { EmailClient } from '../../integrations/email/email.client.js';
 import type { RepositoryService } from '../repository/repository.service.js';
 import { ConflictError, NotFoundError } from '../../common/errors/app-error.js';
+import { getSubscriptionDtoSchema, type GetSubscriptionDto } from './subscription.schema.js';
 
 export class SubscriptionService {
   constructor(
@@ -117,9 +118,16 @@ export class SubscriptionService {
     }
   }
 
-  async getSubscriptions(
-    _email: string,
-  ): Promise<{ email: string; repo: string; confirmed: boolean; lastSeenTag: string | null }[]> {
-    throw new Error('Not implemented');
+  async getSubscriptions(email: string): Promise<GetSubscriptionDto[]> {
+    const subscriptions = await this.prisma.subscription.findMany({
+      where: { email, confirmed: true },
+      select: {
+        email: true,
+        confirmed: true,
+        repository: { select: { owner: true, repo: true, lastSeenTag: true } },
+      },
+    });
+
+    return subscriptions.map((s) => getSubscriptionDtoSchema.parse(s));
   }
 }
