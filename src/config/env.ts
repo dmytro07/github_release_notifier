@@ -14,6 +14,7 @@ const envSchema = z.object({
   FROM_EMAIL: z.string().email(),
   SCANNER_INTERVAL_MS: z.coerce.number().default(300_000),
   CORS_ORIGIN: z.string().optional(),
+  API_SECRET_KEY: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

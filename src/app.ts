@@ -11,6 +11,7 @@ import { env } from './config/env.js';
 import { logger } from './config/logger.js';
 import type { ISubscriptionController } from './modules/subscription/subscription.controller.js';
 import { createSubscriptionRouter } from './modules/subscription/index.js';
+import { authenticate, makePublic } from './common/middleware/auth.js';
 import { notFound } from './common/middleware/not-found.js';
 import { errorHandler } from './common/middleware/error-handler.js';
 
@@ -42,10 +43,11 @@ export function createApp(controller: ISubscriptionController): Express {
 
   app.use(pinoHttp({ logger }));
 
-  app.get('/api/health', (_req, res) => {
+  app.get('/api/health', makePublic, (_req, res) => {
     res.json({ status: 'ok' });
   });
 
+  app.use('/api', authenticate);
   app.use('/api', createSubscriptionRouter(controller));
 
   app.use(notFound);
