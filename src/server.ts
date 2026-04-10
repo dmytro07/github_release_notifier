@@ -7,6 +7,7 @@ import { GitHubClient } from './integrations/github/github.client.js';
 import { EmailClient } from './integrations/email/email.client.js';
 import { SubscriptionService } from './modules/subscription/subscription.service.js';
 import { SubscriptionController } from './modules/subscription/subscription.controller.js';
+import { RepositoryService } from './modules/repository/index.js';
 import { ScannerJob } from './jobs/scanner.job.js';
 
 const adapter = new PrismaPg({ connectionString: env.DATABASE_URL });
@@ -19,9 +20,10 @@ const email = new EmailClient(
   env.SMTP_PASS,
   env.FROM_EMAIL,
 );
+const repositoryService = new RepositoryService(prisma);
 const subscriptionService = new SubscriptionService(prisma, github, email);
 const controller = new SubscriptionController(subscriptionService);
-const scanner = new ScannerJob(prisma, github, subscriptionService, email, env.SCANNER_INTERVAL_MS);
+const scanner = new ScannerJob(prisma, repositoryService, github, subscriptionService, email, env.SCANNER_INTERVAL_MS);
 
 const app = createApp(controller);
 
