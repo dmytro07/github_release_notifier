@@ -7,7 +7,7 @@ generator client {
 }
 
 model Repository {
-  id            String         @id @default(uuid()) @map("id")
+  id            String         @id @default(uuid()) @db.Uuid
   owner         String         @map("owner")
   repo          String         @map("repo")
   lastSeenTag   String?        @map("last_seen_tag")
@@ -20,7 +20,7 @@ model Repository {
 }
 
 model Subscription {
-  id                String     @id @default(uuid()) @map("id")
+  id                String     @id @default(uuid()) @db.Uuid
   email             String     @map("email")
   confirmed         Boolean    @default(false) @map("confirmed")
   confirmationToken String     @unique @map("confirmation_token")
@@ -28,11 +28,11 @@ model Subscription {
   createdAt         DateTime   @default(now()) @map("created_at")
   updatedAt         DateTime   @updatedAt @map("updated_at")
 
-  repositoryId      String     @map("repository_id")
+  repositoryId      String     @map("repository_id") @db.Uuid
   repository        Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
 
   @@unique([email, repositoryId], map: "subscriptions_email_repository_id_key")
-  @@index([confirmationToken], map: "subscriptions_confirmation_token_idx")
-  @@index([unsubscribeToken], map: "subscriptions_unsubscribe_token_idx")
+  @@index([repositoryId, confirmed], map: "subscriptions_repository_id_confirmed_idx")
+  @@index([email, confirmed], map: "subscriptions_email_confirmed_idx")
   @@map("subscriptions")
 }
