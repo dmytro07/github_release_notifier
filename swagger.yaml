@@ -164,4 +164,4 @@ definitions:
         description: 'Whether the subscription is confirmed'
       last_seen_tag:
         type: 'string'
-        description: 'Last seen release tag for this repository'
+        description: 'Last release tag this subscription was notified about'
