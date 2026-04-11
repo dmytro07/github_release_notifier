@@ -1,10 +1,10 @@
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { execSync } from 'node:child_process';
-import type { GlobalSetupContext } from 'vitest/node';
+import type { TestProject } from 'vitest/node';
 
 let container: StartedPostgreSqlContainer;
 
-export async function setup({ provide }: GlobalSetupContext): Promise<void> {
+export async function setup({ provide }: TestProject): Promise<void> {
   container = await new PostgreSqlContainer('postgres:16-alpine').start();
 
   const databaseUrl = container.getConnectionUri();

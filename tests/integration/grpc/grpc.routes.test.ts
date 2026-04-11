@@ -12,7 +12,14 @@ import { RepositoryService } from '../../../src/modules/repository/repository.se
 import type { GitHubClient } from '../../../src/integrations/github/github.client.js';
 import type { EmailClient } from '../../../src/integrations/email/email.client.js';
 import { createGrpcServer, createReleaseNotifierHandler } from '../../../src/grpc/index.js';
-import { ReleaseNotifierServiceClient } from '../../../src/generated/release_notifier/v1/release_notifier.js';
+import {
+  ConfirmResponse,
+  GetSubscriptionsResponse,
+  HealthResponse,
+  ReleaseNotifierServiceClient,
+  SubscribeResponse,
+  UnsubscribeResponse,
+} from '../../../src/generated/release_notifier/v1/release_notifier.js';
 import { GitHubRateLimitError } from '../../../src/common/errors/app-error.js';
 import { getPrisma, disconnectPrisma } from '../../helpers/setup.js';
 import { truncateAllTables } from '../../helpers/cleanup.js';
@@ -112,7 +119,7 @@ describe('gRPC Routes (integration)', () => {
 
   describe('Health', () => {
     it('returns status ok', async () => {
-      const res = await callAsync(client.health.bind(client), {});
+      const res = (await callAsync(client.health.bind(client), {})) as HealthResponse;
       expect(res.status).toBe('ok');
     });
   });
@@ -122,10 +129,10 @@ describe('gRPC Routes (integration)', () => {
       github.getRepo.mockResolvedValue({ id: 1 });
       emailClient.send.mockResolvedValue(undefined);
 
-      const res = await callAsync(client.subscribe.bind(client), {
+      const res = (await callAsync(client.subscribe.bind(client), {
         email: testEmail,
         repo: testRepo,
-      });
+      })) as SubscribeResponse;
 
       expect(res.message).toBeTruthy();
       expect(emailClient.send).toHaveBeenCalledOnce();
@@ -178,9 +185,9 @@ describe('gRPC Routes (integration)', () => {
     it('confirms a pending subscription', async () => {
       const { confirmationToken } = await seedSubscription({ confirmed: false });
 
-      const res = await callAsync(client.confirmSubscription.bind(client), {
+      const res = (await callAsync(client.confirmSubscription.bind(client), {
         token: confirmationToken,
-      });
+      })) as ConfirmResponse;
       expect(res.message).toBeTruthy();
 
       const sub = await prisma.subscription.findFirst({ where: { confirmationToken } });
@@ -204,7 +211,9 @@ describe('gRPC Routes (integration)', () => {
     it('removes an existing subscription', async () => {
       const { unsubscribeToken, subscription } = await seedSubscription({ confirmed: true });
 
-      const res = await callAsync(client.unsubscribe.bind(client), { token: unsubscribeToken });
+      const res = (await callAsync(client.unsubscribe.bind(client), {
+        token: unsubscribeToken,
+      })) as UnsubscribeResponse;
       expect(res.message).toBeTruthy();
 
       const sub = await prisma.subscription.findUnique({ where: { id: subscription.id } });
@@ -222,7 +231,9 @@ describe('gRPC Routes (integration)', () => {
     it('returns subscriptions for a given email', async () => {
       await seedSubscription({ confirmed: true });
 
-      const res = await callAsync(client.getSubscriptions.bind(client), { email: testEmail });
+      const res = (await callAsync(client.getSubscriptions.bind(client), {
+        email: testEmail,
+      })) as GetSubscriptionsResponse;
 
       expect(res.subscriptions).toHaveLength(1);
       expect(res.subscriptions[0].email).toBe(testEmail);
@@ -231,9 +242,9 @@ describe('gRPC Routes (integration)', () => {
     });
 
     it('returns empty list for email with no subscriptions', async () => {
-      const res = await callAsync(client.getSubscriptions.bind(client), {
+      const res = (await callAsync(client.getSubscriptions.bind(client), {
         email: 'nobody@example.com',
-      });
+      })) as GetSubscriptionsResponse;
       expect(res.subscriptions).toHaveLength(0);
     });
 
