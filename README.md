@@ -55,15 +55,15 @@ docker compose up --build
 
 This starts:
 
-| Service  | Port                        |
-| -------- | --------------------------- |
-| API      | `http://localhost:3000`     |
-| gRPC     | `localhost:50051`           |
+| Service  | Port                            |
+| -------- | ------------------------------- |
+| API      | `http://localhost:3000`         |
+| gRPC     | `localhost:50051`               |
 | Swagger  | `http://localhost:3000/swagger` |
 | Metrics  | `http://localhost:3000/metrics` |
-| MailHog  | `http://localhost:8025`     |
-| Postgres | `localhost:5432`            |
-| Redis    | `localhost:6379`            |
+| MailHog  | `http://localhost:8025`         |
+| Postgres | `localhost:5432`                |
+| Redis    | `localhost:6379`                |
 
 Prisma migrations run automatically on startup (`prisma migrate deploy` in the Dockerfile CMD).
 
@@ -84,14 +84,14 @@ pnpm dev                      # tsx watch — hot-reload on file changes
 
 All endpoints are defined in `swagger.yaml` (viewable at `/swagger`).
 
-| Method | Path                         | Auth     | Description                          |
-| ------ | ---------------------------- | -------- | ------------------------------------ |
-| POST   | `/api/subscribe`             | API key* | Subscribe email to repo releases     |
-| GET    | `/api/confirm/{token}`       | None     | Confirm subscription via email token |
-| GET    | `/api/unsubscribe/{token}`   | None     | Unsubscribe via email token          |
-| GET    | `/api/subscriptions?email=…` | API key* | List active subscriptions for email  |
-| GET    | `/api/health`                | None     | Health check                         |
-| GET    | `/metrics`                   | None     | Prometheus scrape endpoint           |
+| Method | Path                         | Auth      | Description                          |
+| ------ | ---------------------------- | --------- | ------------------------------------ |
+| POST   | `/api/subscribe`             | API key\* | Subscribe email to repo releases     |
+| GET    | `/api/confirm/{token}`       | None      | Confirm subscription via email token |
+| GET    | `/api/unsubscribe/{token}`   | None      | Unsubscribe via email token          |
+| GET    | `/api/subscriptions?email=…` | API key\* | List active subscriptions for email  |
+| GET    | `/api/health`                | None      | Health check                         |
+| GET    | `/metrics`                   | None      | Prometheus scrape endpoint           |
 
 \* API key authentication is **optional** — only enforced when `API_SECRET_KEY` is set. When enabled, pass the key in the `X-API-Key` header. Comparison uses `timingSafeEqual` to prevent timing attacks.
 
@@ -126,15 +126,15 @@ All endpoints are defined in `swagger.yaml` (viewable at `/swagger`).
 
 See `.env.example` for all variables. Key ones:
 
-| Variable             | Required | Default       | Description                                     |
-| -------------------- | -------- | ------------- | ----------------------------------------------- |
-| `DATABASE_URL`       | Yes      | —             | PostgreSQL connection string                     |
-| `BASE_URL`           | Yes      | —             | Public URL for confirmation/unsubscribe links    |
-| `GITHUB_TOKEN`       | No       | —             | GitHub PAT (raises rate limit from 60 to 5000/h) |
-| `REDIS_URL`          | No       | —             | Enables GitHub API response caching when set     |
-| `API_SECRET_KEY`     | No       | —             | Enables X-API-Key authentication when set        |
-| `SCANNER_INTERVAL_MS`| No       | `300000`      | Release scan interval in ms                      |
-| `GRPC_PORT`          | No       | `50051`       | gRPC server port                                 |
+| Variable              | Required | Default  | Description                                      |
+| --------------------- | -------- | -------- | ------------------------------------------------ |
+| `DATABASE_URL`        | Yes      | —        | PostgreSQL connection string                     |
+| `BASE_URL`            | Yes      | —        | Public URL for confirmation/unsubscribe links    |
+| `GITHUB_TOKEN`        | No       | —        | GitHub PAT (raises rate limit from 60 to 5000/h) |
+| `REDIS_URL`           | No       | —        | Enables GitHub API response caching when set     |
+| `API_SECRET_KEY`      | No       | —        | Enables X-API-Key authentication when set        |
+| `SCANNER_INTERVAL_MS` | No       | `300000` | Release scan interval in ms                      |
+| `GRPC_PORT`           | No       | `50051`  | gRPC server port                                 |
 
 ## Testing
 
@@ -144,6 +144,7 @@ pnpm test:integration   # Integration tests (Testcontainers — needs Docker)
 ```
 
 **Unit tests** (10 suites) cover:
+
 - `SubscriptionService` — subscribe, confirm, unsubscribe, list, duplicate/not-found handling
 - `RepositoryService` — find-or-create, pagination, update
 - `GitHubClient` — repo lookup, release fetch, 404 handling, rate limit detection
@@ -159,6 +160,7 @@ pnpm test:integration   # Integration tests (Testcontainers — needs Docker)
 ### gRPC Interface
 
 A parallel `ReleaseNotifierService` mirrors all REST endpoints over gRPC on port 50051. Defined in `proto/release_notifier/v1/release_notifier.proto`. Includes:
+
 - Auth interceptor (validates `x-api-key` metadata when `API_SECRET_KEY` is set)
 - Error-mapper interceptor (translates `AppError` to gRPC status codes)
 - Full integration test suite
@@ -182,6 +184,7 @@ The gRPC server enforces the same key via an auth interceptor on the `x-api-key`
 ### GitHub Actions CI
 
 Pipeline (`.github/workflows/ci.yml`) runs on every push/PR to `main`:
+
 1. pnpm install (frozen lockfile)
 2. Prisma client generation
 3. ESLint
@@ -206,8 +209,7 @@ Internet
   │     └── gRPC  :443 → ECS (gRPC, port 50051)
   │
   ├── ECS Fargate (Service)
-  │     ├── API task (Express + gRPC + Scanner — single container)
-  │     └── Auto-scaling based on CPU/memory
+  │     └── API task (Express + gRPC + Scanner — single container)
   │
   ├── RDS PostgreSQL (Multi-AZ)
   │     └── Private subnet, encrypted at rest
@@ -236,14 +238,14 @@ The existing GitHub Actions CI would be extended with a deployment stage:
 
 1. **CI** (existing) — lint, typecheck, unit tests, integration tests
 2. **Build** — build Docker image, push to Amazon ECR
-3. **Deploy staging** — update ECS service in staging environment, run smoke tests
-4. **Deploy production** — update ECS service in production (blue/green deployment via CodeDeploy)
+3. **Deploy** — update ECS service
 
 Environment-specific configuration would be stored in AWS Secrets Manager and injected as ECS task definition environment variables / secrets.
 
 ### Static Subscription Page
 
 A simple static HTML page for subscribing to releases would be:
+
 - Hosted on **S3 + CloudFront** (separate from the API)
 - A single-page form that calls `POST /api/subscribe`
 - Served under the same domain (e.g., `releases.example.com`) with the API behind `/api` path routing on the ALB
