@@ -7,6 +7,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   BASE_URL: z.string().url(),
   GITHUB_TOKEN: z.string().optional(),
+  REDIS_URL: z.string().url().optional(),
   SMTP_HOST: z.string().min(1),
   SMTP_PORT: z.coerce.number().default(587),
   SMTP_USER: z.string().default(''),
@@ -14,7 +15,7 @@ const envSchema = z.object({
   FROM_EMAIL: z.string().email(),
   SCANNER_INTERVAL_MS: z.coerce.number().default(300_000),
   CORS_ORIGIN: z.string().optional(),
-  API_SECRET_KEY: z.string().min(1).optional(),
+  API_SECRET_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
