@@ -17,11 +17,13 @@ export interface ISubscriptionService {
   confirmSubscription(token: string): Promise<void>;
   unsubscribe(token: string): Promise<void>;
   getSubscriptions(email: string): Promise<GetSubscriptionResponseDto[]>;
-  getSubscriptionsByRepositoryId(
+  getSubscriptionsToNotify(
     repositoryId: string,
+    releaseTag: string,
     page: number,
     pageSize: number,
   ): Promise<PaginatedResponse<SubscriptionNotificationDto>>;
+  markSubscriptionNotified(id: string, tag: string): Promise<void>;
 }
 
 export class SubscriptionService implements ISubscriptionService {
@@ -125,23 +127,30 @@ export class SubscriptionService implements ISubscriptionService {
       select: {
         email: true,
         confirmed: true,
-        repository: { select: { owner: true, repo: true, lastSeenTag: true } },
+        lastSeenTag: true,
+        repository: { select: { owner: true, repo: true } },
       },
     });
 
     return subscriptions.map((s) => getSubscriptionResponseDtoSchema.parse(s));
   }
 
-  async getSubscriptionsByRepositoryId(
+  async getSubscriptionsToNotify(
     repositoryId: string,
+    releaseTag: string,
     page: number,
     pageSize: number,
   ): Promise<PaginatedResponse<SubscriptionNotificationDto>> {
-    const where = { repositoryId, confirmed: true };
+    const where: Prisma.SubscriptionWhereInput = {
+      repositoryId,
+      confirmed: true,
+      OR: [{ lastSeenTag: null }, { lastSeenTag: { not: releaseTag } }],
+    };
+
     const [records, total] = await Promise.all([
       this.prisma.subscription.findMany({
         where,
-        select: { email: true, unsubscribeToken: true },
+        select: { id: true, email: true, unsubscribeToken: true },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
@@ -155,5 +164,12 @@ export class SubscriptionService implements ISubscriptionService {
       pageSize,
       hasMore: page * pageSize < total,
     };
+  }
+
+  async markSubscriptionNotified(id: string, tag: string): Promise<void> {
+    await this.prisma.subscription.update({
+      where: { id },
+      data: { lastSeenTag: tag },
+    });
   }
 }

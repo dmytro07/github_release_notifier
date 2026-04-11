@@ -3,7 +3,6 @@ CREATE TABLE "repositories" (
     "id" UUID NOT NULL,
     "owner" TEXT NOT NULL,
     "repo" TEXT NOT NULL,
-    "last_seen_tag" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -17,6 +16,7 @@ CREATE TABLE "subscriptions" (
     "confirmed" BOOLEAN NOT NULL DEFAULT false,
     "confirmation_token" TEXT NOT NULL,
     "unsubscribe_token" TEXT NOT NULL,
+    "last_seen_tag" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
     "repository_id" UUID NOT NULL,

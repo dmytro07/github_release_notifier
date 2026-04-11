@@ -41,22 +41,23 @@ export const getSubscriptionResponseDtoSchema = z
   .object({
     email: z.string(),
     confirmed: z.boolean(),
+    lastSeenTag: z.string().nullable(),
     repository: z.object({
       owner: z.string(),
       repo: z.string(),
-      lastSeenTag: z.string().nullable(),
     }),
   })
   .transform((data) => ({
     email: data.email,
     repo: `${data.repository.owner}/${data.repository.repo}`,
     confirmed: data.confirmed,
-    last_seen_tag: data.repository.lastSeenTag,
+    last_seen_tag: data.lastSeenTag,
   }));
 
 export type GetSubscriptionResponseDto = z.output<typeof getSubscriptionResponseDtoSchema>;
 
 export const subscriptionNotificationDtoSchema = z.object({
+  id: z.string().uuid(),
   email: z.string(),
   unsubscribeToken: z.string(),
 });

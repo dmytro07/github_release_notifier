@@ -7,17 +7,10 @@ export const createRepoDtoSchema = z.object({
 
 export type CreateRepoDto = z.infer<typeof createRepoDtoSchema>;
 
-export const updateRepoDtoSchema = z.object({
-  lastSeenTag: z.string().nullable().optional(),
-});
-
-export type UpdateRepoDto = z.infer<typeof updateRepoDtoSchema>;
-
 export const getRepoDtoSchema = z.object({
   id: z.string().uuid(),
   owner: z.string(),
   repo: z.string(),
-  lastSeenTag: z.string().nullable(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });

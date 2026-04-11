@@ -1,16 +1,9 @@
 import type { PrismaClient } from '@prisma/client';
 import type { PaginatedResponse } from '../../common/types/paginated-response.js';
-import {
-  getRepoDtoSchema,
-  type CreateRepoDto,
-  type UpdateRepoDto,
-  type GetRepoDto,
-} from './repository.schema.js';
+import { getRepoDtoSchema, type CreateRepoDto, type GetRepoDto } from './repository.schema.js';
 
 export interface IRepositoryService {
   findOrCreateRepo(dto: CreateRepoDto): Promise<GetRepoDto>;
-  updateRepo(id: string, dto: UpdateRepoDto): Promise<GetRepoDto>;
-  deleteRepo(id: string): Promise<void>;
   getReposThatHaveActiveSubscriptions(
     page: number,
     pageSize: number,
@@ -28,19 +21,6 @@ export class RepositoryService implements IRepositoryService {
     });
 
     return getRepoDtoSchema.parse(record);
-  }
-
-  async updateRepo(id: string, dto: UpdateRepoDto): Promise<GetRepoDto> {
-    const record = await this.prisma.repository.update({
-      where: { id },
-      data: dto,
-    });
-
-    return getRepoDtoSchema.parse(record);
-  }
-
-  async deleteRepo(id: string): Promise<void> {
-    await this.prisma.repository.delete({ where: { id } });
   }
 
   async getReposThatHaveActiveSubscriptions(

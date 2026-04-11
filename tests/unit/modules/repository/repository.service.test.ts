@@ -11,7 +11,6 @@ function makeRepoRecord(overrides: Partial<Record<string, unknown>> = {}) {
     id: repoId,
     owner: repoOwner,
     repo: repoRepo,
-    lastSeenTag: null,
     createdAt: new Date('2025-01-01T00:00:00Z'),
     updatedAt: new Date('2025-01-01T00:00:00Z'),
     ...overrides,
@@ -68,65 +67,6 @@ describe('RepositoryService', () => {
     });
   });
 
-  describe('updateRepo', () => {
-    it('should return a parsed GetRepoDto when update succeeds', async () => {
-      const record = makeRepoRecord({ lastSeenTag: 'v2.0.0' });
-      mockRepository.update.mockResolvedValue(record);
-
-      const result = await service.updateRepo(record.id, { lastSeenTag: 'v2.0.0' });
-
-      expect(result).toEqual(record);
-    });
-
-    it('should call update with correct where and data arguments', async () => {
-      const id = repoId;
-      const dto = { lastSeenTag: 'v1.0.0' };
-      mockRepository.update.mockResolvedValue(makeRepoRecord(dto));
-
-      await service.updateRepo(id, dto);
-
-      expect(mockRepository.update).toHaveBeenCalledWith({
-        where: { id },
-        data: dto,
-      });
-    });
-
-    it('should propagate Prisma errors', async () => {
-      const error = new Error('Record not found');
-      mockRepository.update.mockRejectedValue(error);
-
-      await expect(service.updateRepo('nonexistent-id', { lastSeenTag: 'v1.0.0' })).rejects.toThrow(
-        error,
-      );
-    });
-  });
-
-  describe('deleteRepo', () => {
-    it('should call delete with correct where argument', async () => {
-      const id = repoId;
-      mockRepository.delete.mockResolvedValue(makeRepoRecord());
-
-      await service.deleteRepo(id);
-
-      expect(mockRepository.delete).toHaveBeenCalledWith({ where: { id } });
-    });
-
-    it('should return void', async () => {
-      mockRepository.delete.mockResolvedValue(makeRepoRecord());
-
-      const result = await service.deleteRepo(repoId);
-
-      expect(result).toBeUndefined();
-    });
-
-    it('should propagate Prisma errors', async () => {
-      const error = new Error('Record not found');
-      mockRepository.delete.mockRejectedValue(error);
-
-      await expect(service.deleteRepo('nonexistent-id')).rejects.toThrow(error);
-    });
-  });
-
   describe('getReposThatHaveActiveSubscriptions', () => {
     const expectedWhere = { subscriptions: { some: { confirmed: true } } };
 
@@ -137,7 +77,6 @@ describe('RepositoryService', () => {
           id: '660e8400-e29b-41d4-a716-446655440000',
           owner: 'nodejs',
           repo: 'node',
-          lastSeenTag: 'v22.0.0',
         }),
       ];
       mockRepository.findMany.mockResolvedValue(records);

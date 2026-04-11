@@ -10,7 +10,6 @@ model Repository {
   id            String         @id @default(uuid()) @db.Uuid
   owner         String         @map("owner")
   repo          String         @map("repo")
-  lastSeenTag   String?        @map("last_seen_tag")
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
   subscriptions Subscription[]
@@ -25,6 +24,7 @@ model Subscription {
   confirmed         Boolean    @default(false) @map("confirmed")
   confirmationToken String     @unique @map("confirmation_token")
   unsubscribeToken  String     @unique @map("unsubscribe_token")
+  lastSeenTag       String?    @map("last_seen_tag")
   createdAt         DateTime   @default(now()) @map("created_at")
   updatedAt         DateTime   @updatedAt @map("updated_at")
 

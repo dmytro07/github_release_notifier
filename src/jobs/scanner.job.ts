@@ -85,22 +85,19 @@ export class ScannerJob {
     const fullName = `${repo.owner}/${repo.repo}`;
     try {
       const release = await this.github.getLatestRelease(repo.owner, repo.repo);
-      if (!release || release.tag_name === repo.lastSeenTag) {
+      if (!release) {
         return;
       }
 
       logger.info({ repo: fullName, tag: release.tag_name }, 'New release detected');
 
-      await this.repositoryService.updateRepo(repo.id, {
-        lastSeenTag: release.tag_name,
-      });
-
       let subPage = 1;
       let hasMoreSubs = true;
 
       while (hasMoreSubs) {
-        const subsResult = await this.subscriptionService.getSubscriptionsByRepositoryId(
+        const subsResult = await this.subscriptionService.getSubscriptionsToNotify(
           repo.id,
+          release.tag_name,
           subPage,
           SUB_PAGE_SIZE,
         );
@@ -114,6 +111,7 @@ export class ScannerJob {
                      <p><a href="https://github.com/${fullName}/releases/tag/${release.tag_name}">View release</a></p>
                      <p><a href="${this.baseUrl}/api/unsubscribe/${sub.unsubscribeToken}">Unsubscribe</a></p>`,
             });
+            await this.subscriptionService.markSubscriptionNotified(sub.id, release.tag_name);
           } catch (emailErr) {
             logger.error(
               { err: emailErr, email: sub.email, repo: fullName },

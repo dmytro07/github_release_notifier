@@ -18,7 +18,6 @@ const repoRecord = {
   id: repoId,
   owner: testOwner,
   repo: testRepoName,
-  lastSeenTag: null,
   createdAt: new Date('2025-01-01T00:00:00Z'),
   updatedAt: new Date('2025-01-01T00:00:00Z'),
 };
@@ -235,17 +234,19 @@ describe('SubscriptionService', () => {
   });
 
   describe('getSubscriptions', () => {
-    it('should return confirmed subscriptions for a given email', async () => {
+    it('should return confirmed subscriptions with lastSeenTag from subscription', async () => {
       mockSubscription.findMany.mockResolvedValue([
         {
           email: testEmail,
           confirmed: true,
-          repository: { owner: testOwner, repo: testRepoName, lastSeenTag: 'v1.0.0' },
+          lastSeenTag: 'v1.0.0',
+          repository: { owner: testOwner, repo: testRepoName },
         },
         {
           email: testEmail,
           confirmed: true,
-          repository: { owner: 'facebook', repo: 'react', lastSeenTag: null },
+          lastSeenTag: null,
+          repository: { owner: 'facebook', repo: 'react' },
         },
       ]);
 
@@ -256,7 +257,8 @@ describe('SubscriptionService', () => {
         select: {
           email: true,
           confirmed: true,
-          repository: { select: { owner: true, repo: true, lastSeenTag: true } },
+          lastSeenTag: true,
+          repository: { select: { owner: true, repo: true } },
         },
       });
 
@@ -276,7 +278,8 @@ describe('SubscriptionService', () => {
         select: {
           email: true,
           confirmed: true,
-          repository: { select: { owner: true, repo: true, lastSeenTag: true } },
+          lastSeenTag: true,
+          repository: { select: { owner: true, repo: true } },
         },
       });
 
@@ -284,27 +287,33 @@ describe('SubscriptionService', () => {
     });
   });
 
-  describe('getSubscriptionsByRepositoryId', () => {
+  describe('getSubscriptionsToNotify', () => {
     const subRecords = [
-      { email: 'a@example.com', unsubscribeToken: 'token-a' },
-      { email: 'b@example.com', unsubscribeToken: 'token-b' },
+      { id: '660e8400-e29b-41d4-a716-446655440001', email: 'a@example.com', unsubscribeToken: 'token-a' },
+      { id: '660e8400-e29b-41d4-a716-446655440002', email: 'b@example.com', unsubscribeToken: 'token-b' },
     ];
 
-    it('should return a paginated response of subscription notifications', async () => {
+    it('should return a paginated response filtering out subscriptions already notified about the tag', async () => {
       mockSubscription.findMany.mockResolvedValue(subRecords);
       mockSubscription.count.mockResolvedValue(2);
 
-      const result = await service.getSubscriptionsByRepositoryId(repoId, 1, 10);
+      const result = await service.getSubscriptionsToNotify(repoId, 'v2.0.0', 1, 10);
+
+      const expectedWhere = {
+        repositoryId: repoId,
+        confirmed: true,
+        OR: [{ lastSeenTag: null }, { lastSeenTag: { not: 'v2.0.0' } }],
+      };
 
       expect(mockSubscription.findMany).toHaveBeenCalledWith({
-        where: { repositoryId: repoId, confirmed: true },
-        select: { email: true, unsubscribeToken: true },
+        where: expectedWhere,
+        select: { id: true, email: true, unsubscribeToken: true },
         skip: 0,
         take: 10,
       });
 
       expect(mockSubscription.count).toHaveBeenCalledWith({
-        where: { repositoryId: repoId, confirmed: true },
+        where: expectedWhere,
       });
 
       expect(result).toEqual({
@@ -320,7 +329,7 @@ describe('SubscriptionService', () => {
       mockSubscription.findMany.mockResolvedValue(subRecords);
       mockSubscription.count.mockResolvedValue(5);
 
-      const result = await service.getSubscriptionsByRepositoryId(repoId, 1, 2);
+      const result = await service.getSubscriptionsToNotify(repoId, 'v2.0.0', 1, 2);
 
       expect(result.hasMore).toBe(true);
       expect(result.total).toBe(5);
@@ -330,7 +339,7 @@ describe('SubscriptionService', () => {
       mockSubscription.findMany.mockResolvedValue([]);
       mockSubscription.count.mockResolvedValue(0);
 
-      const result = await service.getSubscriptionsByRepositoryId(repoId, 1, 10);
+      const result = await service.getSubscriptionsToNotify(repoId, 'v2.0.0', 1, 10);
 
       expect(result).toEqual({
         data: [],
@@ -346,8 +355,39 @@ describe('SubscriptionService', () => {
       mockSubscription.findMany.mockRejectedValue(error);
 
       await expect(
-        service.getSubscriptionsByRepositoryId(repoId, 1, 10),
+        service.getSubscriptionsToNotify(repoId, 'v2.0.0', 1, 10),
       ).rejects.toThrow(error);
+    });
+  });
+
+  describe('markSubscriptionNotified', () => {
+    const subId = '550e8400-e29b-41d4-a716-446655440010';
+    const tag = 'v3.0.0';
+
+    it('should update lastSeenTag on the subscription', async () => {
+      mockSubscription.update.mockResolvedValue({});
+
+      await service.markSubscriptionNotified(subId, tag);
+
+      expect(mockSubscription.update).toHaveBeenCalledWith({
+        where: { id: subId },
+        data: { lastSeenTag: tag },
+      });
+    });
+
+    it('should return void on success', async () => {
+      mockSubscription.update.mockResolvedValue({});
+
+      const result = await service.markSubscriptionNotified(subId, tag);
+
+      expect(result).toBeUndefined();
+    });
+
+    it('should propagate Prisma errors', async () => {
+      const error = new Error('DB connection lost');
+      mockSubscription.update.mockRejectedValue(error);
+
+      await expect(service.markSubscriptionNotified(subId, tag)).rejects.toThrow(error);
     });
   });
 });

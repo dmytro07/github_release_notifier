@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ScannerJob } from '../../../src/jobs/scanner.job.js';
-import type { RepositoryService } from '../../../src/modules/repository/repository.service.js';
-import type { GitHubClient } from '../../../src/integrations/github/github.client.js';
-import type { SubscriptionService } from '../../../src/modules/subscription/subscription.service.js';
-import type { EmailClient } from '../../../src/integrations/email/email.client.js';
+import type { IRepositoryService } from '../../../src/modules/repository/repository.service.js';
+import type { IGitHubClient } from '../../../src/integrations/github/github.client.js';
+import type { ISubscriptionService } from '../../../src/modules/subscription/subscription.service.js';
+import type { IEmailClient } from '../../../src/integrations/email/email.client.js';
 import type { GetRepoDto } from '../../../src/modules/repository/repository.schema.js';
 import type { PaginatedResponse } from '../../../src/common/types/paginated-response.js';
 import { GitHubRateLimitError } from '../../../src/common/errors/app-error.js';
@@ -20,38 +20,38 @@ function makeRepo(overrides: Partial<GetRepoDto> = {}): GetRepoDto {
     id: '550e8400-e29b-41d4-a716-446655440000',
     owner: 'octocat',
     repo: 'hello-world',
-    lastSeenTag: null,
     createdAt: new Date('2025-01-01T00:00:00Z'),
     updatedAt: new Date('2025-01-01T00:00:00Z'),
     ...overrides,
   };
 }
 
-function paginated<T>(
-  data: T[],
-  hasMore: boolean,
-  page = 1,
-  pageSize = 50,
-): PaginatedResponse<T> {
+function paginated<T>(data: T[], hasMore: boolean, page = 1, pageSize = 50): PaginatedResponse<T> {
   return { data, total: data.length, page, pageSize, hasMore };
 }
 
-const repositoryService = {
+const repositoryService: IRepositoryService = {
+  findOrCreateRepo: vi.fn(),
   getReposThatHaveActiveSubscriptions: vi.fn(),
-  updateRepo: vi.fn(),
-} as unknown as RepositoryService;
+};
 
-const github = {
+const github: IGitHubClient = {
   getLatestRelease: vi.fn(),
-} as unknown as GitHubClient;
+  getRepo: vi.fn(),
+};
 
-const subscriptionService = {
-  getSubscriptionsByRepositoryId: vi.fn(),
-} as unknown as SubscriptionService;
+const subscriptionService: ISubscriptionService = {
+  getSubscriptionsToNotify: vi.fn(),
+  markSubscriptionNotified: vi.fn(),
+  getSubscriptions: vi.fn(),
+  subscribe: vi.fn(),
+  confirmSubscription: vi.fn(),
+  unsubscribe: vi.fn(),
+};
 
-const email = {
+const email: IEmailClient = {
   send: vi.fn(),
-} as unknown as EmailClient;
+};
 
 async function triggerRun(): Promise<void> {
   await vi.advanceTimersByTimeAsync(intervalMs);
@@ -63,7 +63,14 @@ describe('ScannerJob', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.resetAllMocks();
-    job = new ScannerJob(repositoryService, github, subscriptionService, email, intervalMs, baseUrl);
+    job = new ScannerJob(
+      repositoryService,
+      github,
+      subscriptionService,
+      email,
+      intervalMs,
+      baseUrl,
+    );
   });
 
   afterEach(() => {
@@ -90,56 +97,74 @@ describe('ScannerJob', () => {
       expect(github.getLatestRelease).toHaveBeenCalledTimes(2);
     });
 
-    it('should send notification emails for a new release', async () => {
-      const repo = makeRepo({ lastSeenTag: 'v1.0.0' });
+    it('should send notification emails for a new release and mark subscriptions notified', async () => {
+      const repo = makeRepo();
 
-      (repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(paginated([repo], false));
+      (
+        repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(paginated([repo], false));
 
-      (github.getLatestRelease as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce({ tag_name: 'v2.0.0' });
+      (github.getLatestRelease as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        tag_name: 'v2.0.0',
+      });
 
-      (repositoryService.updateRepo as ReturnType<typeof vi.fn>).mockResolvedValue(repo);
-
-      const sub = { email: 'user@example.com', unsubscribeToken: 'tok-1' };
-      (subscriptionService.getSubscriptionsByRepositoryId as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(paginated([sub], false));
+      const sub = { id: 'sub-id-1', email: 'user@example.com', unsubscribeToken: 'tok-1' };
+      (
+        subscriptionService.getSubscriptionsToNotify as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(paginated([sub], false));
 
       (email.send as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+      (subscriptionService.markSubscriptionNotified as ReturnType<typeof vi.fn>).mockResolvedValue(
+        undefined,
+      );
 
       job.start();
       await triggerRun();
 
-      expect(repositoryService.updateRepo).toHaveBeenCalledWith(repo.id, { lastSeenTag: 'v2.0.0' });
+      expect(subscriptionService.getSubscriptionsToNotify).toHaveBeenCalledWith(
+        repo.id,
+        'v2.0.0',
+        1,
+        50,
+      );
 
       expect(email.send).toHaveBeenCalledWith({
         to: 'user@example.com',
         subject: 'New release: octocat/hello-world v2.0.0',
         html: expect.stringContaining('v2.0.0'),
       });
-      expect((email.send as ReturnType<typeof vi.fn>).mock.calls[0][0].html)
-        .toContain(`${baseUrl}/api/unsubscribe/tok-1`);
+      expect((email.send as ReturnType<typeof vi.fn>).mock.calls[0][0].html).toContain(
+        `${baseUrl}/api/unsubscribe/tok-1`,
+      );
+
+      expect(subscriptionService.markSubscriptionNotified).toHaveBeenCalledWith(
+        'sub-id-1',
+        'v2.0.0',
+      );
     });
 
-    it('should paginate subscribers', async () => {
-      const repo = makeRepo({ lastSeenTag: 'v1.0.0' });
+    it('should paginate subscribers and mark each notified', async () => {
+      const repo = makeRepo();
 
-      (repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(paginated([repo], false));
+      (
+        repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(paginated([repo], false));
 
-      (github.getLatestRelease as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce({ tag_name: 'v2.0.0' });
+      (github.getLatestRelease as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        tag_name: 'v2.0.0',
+      });
 
-      (repositoryService.updateRepo as ReturnType<typeof vi.fn>).mockResolvedValue(repo);
+      const subA = { id: 'sub-id-a', email: 'a@example.com', unsubscribeToken: 'tok-a' };
+      const subB = { id: 'sub-id-b', email: 'b@example.com', unsubscribeToken: 'tok-b' };
 
-      const subA = { email: 'a@example.com', unsubscribeToken: 'tok-a' };
-      const subB = { email: 'b@example.com', unsubscribeToken: 'tok-b' };
-
-      (subscriptionService.getSubscriptionsByRepositoryId as ReturnType<typeof vi.fn>)
+      (subscriptionService.getSubscriptionsToNotify as ReturnType<typeof vi.fn>)
         .mockResolvedValueOnce(paginated([subA], true))
         .mockResolvedValueOnce(paginated([subB], false, 2));
 
       (email.send as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+      (subscriptionService.markSubscriptionNotified as ReturnType<typeof vi.fn>).mockResolvedValue(
+        undefined,
+      );
 
       job.start();
       await triggerRun();
@@ -147,91 +172,192 @@ describe('ScannerJob', () => {
       expect(email.send).toHaveBeenCalledTimes(2);
       expect(email.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'a@example.com' }));
       expect(email.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'b@example.com' }));
+      expect(subscriptionService.markSubscriptionNotified).toHaveBeenCalledWith(
+        'sub-id-a',
+        'v2.0.0',
+      );
+      expect(subscriptionService.markSubscriptionNotified).toHaveBeenCalledWith(
+        'sub-id-b',
+        'v2.0.0',
+      );
     });
 
     it('should skip repo when no release exists', async () => {
       const repo = makeRepo();
 
-      (repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(paginated([repo], false));
+      (
+        repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(paginated([repo], false));
 
       (github.getLatestRelease as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
 
       job.start();
       await triggerRun();
 
-      expect(repositoryService.updateRepo).not.toHaveBeenCalled();
+      expect(subscriptionService.getSubscriptionsToNotify).not.toHaveBeenCalled();
       expect(email.send).not.toHaveBeenCalled();
+      expect(subscriptionService.markSubscriptionNotified).not.toHaveBeenCalled();
     });
 
-    it('should skip repo when tag is unchanged', async () => {
-      const repo = makeRepo({ lastSeenTag: 'v1.0.0' });
+    it('should not send emails when all subscriptions are already up to date', async () => {
+      const repo = makeRepo();
 
-      (repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(paginated([repo], false));
+      (
+        repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(paginated([repo], false));
 
-      (github.getLatestRelease as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce({ tag_name: 'v1.0.0' });
+      (github.getLatestRelease as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        tag_name: 'v1.0.0',
+      });
+
+      (
+        subscriptionService.getSubscriptionsToNotify as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(paginated([], false));
 
       job.start();
       await triggerRun();
 
-      expect(repositoryService.updateRepo).not.toHaveBeenCalled();
       expect(email.send).not.toHaveBeenCalled();
+      expect(subscriptionService.markSubscriptionNotified).not.toHaveBeenCalled();
+    });
+
+    it('should retry un-notified subscriptions on next run after crash recovery', async () => {
+      const repo = makeRepo();
+
+      (
+        repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(paginated([repo], false));
+
+      (github.getLatestRelease as ReturnType<typeof vi.fn>).mockResolvedValue({
+        tag_name: 'v2.0.0',
+      });
+
+      const sub = { id: 'sub-id-1', email: 'user@example.com', unsubscribeToken: 'tok-1' };
+
+      // First run: one subscription returns (not yet notified), email fails
+      (subscriptionService.getSubscriptionsToNotify as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce(paginated([sub], false))
+        // Second run: same subscription still un-notified (crash recovery)
+        .mockResolvedValueOnce(paginated([sub], false));
+
+      (email.send as ReturnType<typeof vi.fn>)
+        .mockRejectedValueOnce(new Error('SMTP down'))
+        .mockResolvedValueOnce(undefined);
+
+      (subscriptionService.markSubscriptionNotified as ReturnType<typeof vi.fn>).mockResolvedValue(
+        undefined,
+      );
+
+      job.start();
+      await triggerRun();
+
+      // First run: email failed, markSubscriptionNotified not called
+      expect(subscriptionService.markSubscriptionNotified).not.toHaveBeenCalled();
+
+      // Second run: subscription is retried and succeeds
+      await triggerRun();
+
+      expect(email.send).toHaveBeenCalledTimes(2);
+      expect(subscriptionService.markSubscriptionNotified).toHaveBeenCalledOnce();
+      expect(subscriptionService.markSubscriptionNotified).toHaveBeenCalledWith(
+        'sub-id-1',
+        'v2.0.0',
+      );
+    });
+
+    it('should not call markSubscriptionNotified when email fails', async () => {
+      const repo = makeRepo();
+
+      (
+        repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(paginated([repo], false));
+
+      (github.getLatestRelease as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        tag_name: 'v2.0.0',
+      });
+
+      const sub = { id: 'sub-id-1', email: 'user@example.com', unsubscribeToken: 'tok-1' };
+      (
+        subscriptionService.getSubscriptionsToNotify as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(paginated([sub], false));
+
+      (email.send as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('SMTP down'));
+
+      job.start();
+      await triggerRun();
+
+      expect(email.send).toHaveBeenCalledOnce();
+      expect(subscriptionService.markSubscriptionNotified).not.toHaveBeenCalled();
     });
 
     it('should continue processing other repos if one fails', async () => {
       const repoA = makeRepo();
       const repoB = makeRepo({ id: 'id-b', owner: 'nodejs', repo: 'node' });
 
-      (repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(paginated([repoA, repoB], false));
+      (
+        repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(paginated([repoA, repoB], false));
 
       (github.getLatestRelease as ReturnType<typeof vi.fn>)
         .mockRejectedValueOnce(new Error('GitHub API error'))
         .mockResolvedValueOnce({ tag_name: 'v22.0.0' });
 
-      (repositoryService.updateRepo as ReturnType<typeof vi.fn>).mockResolvedValue(repoB);
-
-      const sub = { email: 'user@example.com', unsubscribeToken: 'tok-1' };
-      (subscriptionService.getSubscriptionsByRepositoryId as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(paginated([sub], false));
+      const sub = { id: 'sub-id-1', email: 'user@example.com', unsubscribeToken: 'tok-1' };
+      (
+        subscriptionService.getSubscriptionsToNotify as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(paginated([sub], false));
 
       (email.send as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+      (subscriptionService.markSubscriptionNotified as ReturnType<typeof vi.fn>).mockResolvedValue(
+        undefined,
+      );
 
       job.start();
       await triggerRun();
 
-      expect(repositoryService.updateRepo).toHaveBeenCalledWith('id-b', { lastSeenTag: 'v22.0.0' });
       expect(email.send).toHaveBeenCalledTimes(1);
+      expect(subscriptionService.markSubscriptionNotified).toHaveBeenCalledWith(
+        'sub-id-1',
+        'v22.0.0',
+      );
     });
 
     it('should continue sending emails if one fails', async () => {
-      const repo = makeRepo({ lastSeenTag: 'v1.0.0' });
+      const repo = makeRepo();
 
-      (repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(paginated([repo], false));
+      (
+        repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(paginated([repo], false));
 
-      (github.getLatestRelease as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce({ tag_name: 'v2.0.0' });
+      (github.getLatestRelease as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+        tag_name: 'v2.0.0',
+      });
 
-      (repositoryService.updateRepo as ReturnType<typeof vi.fn>).mockResolvedValue(repo);
+      const subA = { id: 'sub-id-a', email: 'a@example.com', unsubscribeToken: 'tok-a' };
+      const subB = { id: 'sub-id-b', email: 'b@example.com', unsubscribeToken: 'tok-b' };
 
-      const subA = { email: 'a@example.com', unsubscribeToken: 'tok-a' };
-      const subB = { email: 'b@example.com', unsubscribeToken: 'tok-b' };
-
-      (subscriptionService.getSubscriptionsByRepositoryId as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(paginated([subA, subB], false));
+      (
+        subscriptionService.getSubscriptionsToNotify as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(paginated([subA, subB], false));
 
       (email.send as ReturnType<typeof vi.fn>)
         .mockRejectedValueOnce(new Error('SMTP down'))
         .mockResolvedValueOnce(undefined);
+      (subscriptionService.markSubscriptionNotified as ReturnType<typeof vi.fn>).mockResolvedValue(
+        undefined,
+      );
 
       job.start();
       await triggerRun();
 
       expect(email.send).toHaveBeenCalledTimes(2);
       expect(email.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'b@example.com' }));
+      // Only the successful send should mark as notified
+      expect(subscriptionService.markSubscriptionNotified).toHaveBeenCalledOnce();
+      expect(subscriptionService.markSubscriptionNotified).toHaveBeenCalledWith(
+        'sub-id-b',
+        'v2.0.0',
+      );
     });
 
     it('should re-schedule after a top-level error', async () => {
@@ -254,11 +380,13 @@ describe('ScannerJob', () => {
       const repoA = makeRepo();
       const repoB = makeRepo({ id: 'id-b', owner: 'nodejs', repo: 'node' });
 
-      (repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(paginated([repoA, repoB], false));
+      (
+        repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(paginated([repoA, repoB], false));
 
-      (github.getLatestRelease as ReturnType<typeof vi.fn>)
-        .mockRejectedValueOnce(new GitHubRateLimitError(5_000));
+      (github.getLatestRelease as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new GitHubRateLimitError(5_000),
+      );
 
       job.start();
       await triggerRun();
@@ -296,19 +424,21 @@ describe('ScannerJob', () => {
     });
 
     it('should not send emails for the rate-limited repo', async () => {
-      const repo = makeRepo({ lastSeenTag: 'v1.0.0' });
+      const repo = makeRepo();
 
-      (repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce(paginated([repo], false));
+      (
+        repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>
+      ).mockResolvedValueOnce(paginated([repo], false));
 
-      (github.getLatestRelease as ReturnType<typeof vi.fn>)
-        .mockRejectedValueOnce(new GitHubRateLimitError(5_000));
+      (github.getLatestRelease as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new GitHubRateLimitError(5_000),
+      );
 
       job.start();
       await triggerRun();
 
-      expect(repositoryService.updateRepo).not.toHaveBeenCalled();
       expect(email.send).not.toHaveBeenCalled();
+      expect(subscriptionService.markSubscriptionNotified).not.toHaveBeenCalled();
     });
   });
 
@@ -320,8 +450,9 @@ describe('ScannerJob', () => {
     });
 
     it('should clear the pending timeout on stop()', async () => {
-      (repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>)
-        .mockResolvedValue(paginated([], false));
+      (
+        repositoryService.getReposThatHaveActiveSubscriptions as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(paginated([], false));
 
       job.start();
       job.stop();

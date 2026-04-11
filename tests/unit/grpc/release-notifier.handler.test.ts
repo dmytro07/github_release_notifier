@@ -36,7 +36,8 @@ const service: ISubscriptionService = {
   confirmSubscription: vi.fn(),
   unsubscribe: vi.fn(),
   getSubscriptions: vi.fn(),
-  getSubscriptionsByRepositoryId: vi.fn(),
+  getSubscriptionsToNotify: vi.fn(),
+  markSubscriptionNotified: vi.fn(),
 };
 
 describe('ReleaseNotifierHandler', () => {
