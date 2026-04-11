@@ -3,11 +3,12 @@ info:
   description: 'GitHub Release Notification API that allows users to subscribe to email notifications about new releases of a chosen GitHub repository.'
   version: '1.0.0'
   title: 'GitHub Release Notification API'
-host: 'releases-api.app'
 basePath: '/api'
 tags:
   - name: 'subscription'
     description: 'Subscription management operations'
+  - name: 'observability'
+    description: 'Metrics and health endpoints (served outside /api basePath)'
 schemes:
   - 'http'
   - 'https'
@@ -19,6 +20,14 @@ securityDefinitions:
     description: 'Optional API key. Required only when API_SECRET_KEY is configured on the server.'
 security:
   - ApiKeyAuth: []
+x-external-endpoints:
+  - method: GET
+    path: /metrics
+    description: 'Prometheus metrics scrape endpoint. Returns Node.js runtime metrics and HTTP request metrics in Prometheus text format. Served at the root level (not under /api).'
+  - method: GET
+    path: /api/health
+    description: 'Health check endpoint. Returns { status: ok }.'
+
 paths:
   /subscribe:
     post:

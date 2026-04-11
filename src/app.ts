@@ -14,6 +14,7 @@ import { createSubscriptionRouter } from './modules/subscription/index.js';
 import { authenticate, makePublic } from './common/middleware/auth.js';
 import { notFound } from './common/middleware/not-found.js';
 import { errorHandler } from './common/middleware/error-handler.js';
+import { metricsRegistry, httpMetrics } from './common/metrics/index.js';
 
 const swaggerDoc = yaml.load(readFileSync(join(process.cwd(), 'swagger.yaml'), 'utf8')) as Record<
   string,
@@ -28,6 +29,16 @@ export function createApp(controller: ISubscriptionController): Express {
 
   app.use('/swagger', swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
+  app.get('/metrics', async (_req, res) => {
+    try {
+      const metrics = await metricsRegistry.metrics();
+      res.set('Content-Type', metricsRegistry.contentType);
+      res.end(metrics);
+    } catch (err) {
+      res.status(500).end(err instanceof Error ? err.message : 'metrics error');
+    }
+  });
+
   app.use(helmet());
   app.use(cors({ origin: env.CORS_ORIGIN ?? '*' }));
   app.use(express.json({ limit: '100kb' }));
@@ -40,6 +51,8 @@ export function createApp(controller: ISubscriptionController): Express {
       message: { error: 'Too many requests, please try again later' },
     }),
   );
+
+  app.use(httpMetrics);
 
   app.use(pinoHttp({ logger }));
 
