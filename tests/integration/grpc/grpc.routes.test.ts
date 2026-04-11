@@ -12,10 +12,7 @@ import { RepositoryService } from '../../../src/modules/repository/repository.se
 import type { GitHubClient } from '../../../src/integrations/github/github.client.js';
 import type { EmailClient } from '../../../src/integrations/email/email.client.js';
 import { createGrpcServer, createReleaseNotifierHandler } from '../../../src/grpc/index.js';
-import {
-  ReleaseNotifierServiceClient,
-  ReleaseNotifierServiceService,
-} from '../../../src/generated/release_notifier/v1/release_notifier.js';
+import { ReleaseNotifierServiceClient } from '../../../src/generated/release_notifier/v1/release_notifier.js';
 import { GitHubRateLimitError } from '../../../src/common/errors/app-error.js';
 import { getPrisma, disconnectPrisma } from '../../helpers/setup.js';
 import { truncateAllTables } from '../../helpers/cleanup.js';
@@ -43,12 +40,14 @@ function callAsync<Req, Res>(
   });
 }
 
-async function seedSubscription(opts: {
-  email?: string;
-  owner?: string;
-  repo?: string;
-  confirmed?: boolean;
-} = {}) {
+async function seedSubscription(
+  opts: {
+    email?: string;
+    owner?: string;
+    repo?: string;
+    confirmed?: boolean;
+  } = {},
+) {
   const repository = await prisma.repository.upsert({
     where: { owner_repo: { owner: opts.owner ?? testOwner, repo: opts.repo ?? testRepoName } },
     update: {},
@@ -88,7 +87,10 @@ describe('gRPC Routes (integration)', () => {
 
     await new Promise<void>((resolve, reject) => {
       server.bindAsync('127.0.0.1:0', grpc.ServerCredentials.createInsecure(), (err, port) => {
-        if (err) { reject(err); return; }
+        if (err) {
+          reject(err);
+          return;
+        }
         client = new ReleaseNotifierServiceClient(
           `127.0.0.1:${port}`,
           grpc.credentials.createInsecure(),
@@ -176,7 +178,9 @@ describe('gRPC Routes (integration)', () => {
     it('confirms a pending subscription', async () => {
       const { confirmationToken } = await seedSubscription({ confirmed: false });
 
-      const res = await callAsync(client.confirmSubscription.bind(client), { token: confirmationToken });
+      const res = await callAsync(client.confirmSubscription.bind(client), {
+        token: confirmationToken,
+      });
       expect(res.message).toBeTruthy();
 
       const sub = await prisma.subscription.findFirst({ where: { confirmationToken } });
@@ -227,7 +231,9 @@ describe('gRPC Routes (integration)', () => {
     });
 
     it('returns empty list for email with no subscriptions', async () => {
-      const res = await callAsync(client.getSubscriptions.bind(client), { email: 'nobody@example.com' });
+      const res = await callAsync(client.getSubscriptions.bind(client), {
+        email: 'nobody@example.com',
+      });
       expect(res.subscriptions).toHaveLength(0);
     });
 

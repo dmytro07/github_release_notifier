@@ -20,7 +20,7 @@ import type {
   HealthRequest,
   HealthResponse,
 } from '../../../src/generated/release_notifier/v1/release_notifier.js';
-import { BadRequestError, ConflictError, NotFoundError } from '../../../src/common/errors/app-error.js';
+import { ConflictError, NotFoundError } from '../../../src/common/errors/app-error.js';
 
 function makeCall<T>(request: T, path = ''): ServerUnaryCall<T, unknown> {
   const meta = new Metadata();
@@ -57,7 +57,10 @@ describe('ReleaseNotifierHandler', () => {
       );
       await new Promise((r) => setTimeout(r, 0));
       expect(service.subscribe).toHaveBeenCalledWith('user@example.com', 'golang/go');
-      expect(callback).toHaveBeenCalledWith(null, expect.objectContaining({ message: expect.any(String) }));
+      expect(callback).toHaveBeenCalledWith(
+        null,
+        expect.objectContaining({ message: expect.any(String) }),
+      );
     });
 
     it('rejects invalid email with INVALID_ARGUMENT', async () => {
@@ -85,7 +88,9 @@ describe('ReleaseNotifierHandler', () => {
     });
 
     it('maps ConflictError from service to ALREADY_EXISTS', async () => {
-      (service.subscribe as ReturnType<typeof vi.fn>).mockRejectedValue(new ConflictError('Already subscribed'));
+      (service.subscribe as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new ConflictError('Already subscribed'),
+      );
       const callback = vi.fn() as unknown as sendUnaryData<SubscribeResponse>;
       handler.subscribe(
         makeCall<SubscribeRequest>({ email: 'user@example.com', repo: 'golang/go' }),
@@ -98,7 +103,9 @@ describe('ReleaseNotifierHandler', () => {
     });
 
     it('maps NotFoundError from service to NOT_FOUND', async () => {
-      (service.subscribe as ReturnType<typeof vi.fn>).mockRejectedValue(new NotFoundError('Repo not found on GitHub'));
+      (service.subscribe as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new NotFoundError('Repo not found on GitHub'),
+      );
       const callback = vi.fn() as unknown as sendUnaryData<SubscribeResponse>;
       handler.subscribe(
         makeCall<SubscribeRequest>({ email: 'user@example.com', repo: 'golang/go' }),
@@ -119,7 +126,10 @@ describe('ReleaseNotifierHandler', () => {
       handler.confirmSubscription(makeCall<ConfirmRequest>({ token }), callback);
       await new Promise((r) => setTimeout(r, 0));
       expect(service.confirmSubscription).toHaveBeenCalledWith(token);
-      expect(callback).toHaveBeenCalledWith(null, expect.objectContaining({ message: expect.any(String) }));
+      expect(callback).toHaveBeenCalledWith(
+        null,
+        expect.objectContaining({ message: expect.any(String) }),
+      );
     });
 
     it('rejects non-UUID token with INVALID_ARGUMENT', async () => {
@@ -132,14 +142,18 @@ describe('ReleaseNotifierHandler', () => {
     });
 
     it('maps NotFoundError to NOT_FOUND', async () => {
-      (service.confirmSubscription as ReturnType<typeof vi.fn>).mockRejectedValue(new NotFoundError());
+      (service.confirmSubscription as ReturnType<typeof vi.fn>).mockRejectedValue(
+        new NotFoundError(),
+      );
       const callback = vi.fn() as unknown as sendUnaryData<ConfirmResponse>;
       handler.confirmSubscription(
         makeCall<ConfirmRequest>({ token: '550e8400-e29b-41d4-a716-446655440000' }),
         callback,
       );
       await new Promise((r) => setTimeout(r, 0));
-      expect(callback).toHaveBeenCalledWith(expect.objectContaining({ code: grpcStatus.NOT_FOUND }));
+      expect(callback).toHaveBeenCalledWith(
+        expect.objectContaining({ code: grpcStatus.NOT_FOUND }),
+      );
     });
   });
 
@@ -151,7 +165,10 @@ describe('ReleaseNotifierHandler', () => {
       handler.unsubscribe(makeCall<UnsubscribeRequest>({ token }), callback);
       await new Promise((r) => setTimeout(r, 0));
       expect(service.unsubscribe).toHaveBeenCalledWith(token);
-      expect(callback).toHaveBeenCalledWith(null, expect.objectContaining({ message: expect.any(String) }));
+      expect(callback).toHaveBeenCalledWith(
+        null,
+        expect.objectContaining({ message: expect.any(String) }),
+      );
     });
 
     it('rejects non-UUID token with INVALID_ARGUMENT', async () => {
@@ -171,13 +188,21 @@ describe('ReleaseNotifierHandler', () => {
         { email: 'user@example.com', repo: 'nodejs/node', confirmed: false, last_seen_tag: null },
       ]);
       const callback = vi.fn() as unknown as sendUnaryData<GetSubscriptionsResponse>;
-      handler.getSubscriptions(makeCall<GetSubscriptionsRequest>({ email: 'user@example.com' }), callback);
+      handler.getSubscriptions(
+        makeCall<GetSubscriptionsRequest>({ email: 'user@example.com' }),
+        callback,
+      );
       await new Promise((r) => setTimeout(r, 0));
       expect(service.getSubscriptions).toHaveBeenCalledWith('user@example.com');
       expect(callback).toHaveBeenCalledWith(null, {
         subscriptions: [
           { email: 'user@example.com', repo: 'golang/go', confirmed: true, lastSeenTag: 'v1.22.0' },
-          { email: 'user@example.com', repo: 'nodejs/node', confirmed: false, lastSeenTag: undefined },
+          {
+            email: 'user@example.com',
+            repo: 'nodejs/node',
+            confirmed: false,
+            lastSeenTag: undefined,
+          },
         ],
       });
     });
