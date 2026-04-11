@@ -16,6 +16,7 @@ const envSchema = z.object({
   SCANNER_INTERVAL_MS: z.coerce.number().default(300_000),
   CORS_ORIGIN: z.string().optional(),
   API_SECRET_KEY: z.string().optional(),
+  GRPC_PORT: z.coerce.number().default(50051),
 });
 
 export type Env = z.infer<typeof envSchema>;

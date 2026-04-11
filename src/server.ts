@@ -1,3 +1,4 @@
+import * as grpc from '@grpc/grpc-js';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { env } from './config/env.js';
@@ -12,6 +13,7 @@ import { SubscriptionService } from './modules/subscription/subscription.service
 import { SubscriptionController } from './modules/subscription/subscription.controller.js';
 import { RepositoryService } from './modules/repository/index.js';
 import { ScannerJob } from './jobs/scanner.job.js';
+import { createGrpcServer, createReleaseNotifierHandler } from './grpc/index.js';
 
 const adapter = new PrismaPg({ connectionString: env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -32,14 +34,30 @@ const scanner = new ScannerJob(repositoryService, github, subscriptionService, e
 
 const app = createApp(controller);
 
+const grpcHandler = createReleaseNotifierHandler(subscriptionService);
+const grpcServer = createGrpcServer(grpcHandler, env.API_SECRET_KEY);
+
 const server = app.listen(env.PORT, () => {
   logger.info({ port: env.PORT }, 'Server started');
   scanner.start();
 });
 
+grpcServer.bindAsync(
+  `0.0.0.0:${env.GRPC_PORT}`,
+  grpc.ServerCredentials.createInsecure(),
+  (err, port) => {
+    if (err) {
+      logger.error({ err }, 'Failed to bind gRPC server');
+      process.exit(1);
+    }
+    logger.info({ port }, 'gRPC server started');
+  },
+);
+
 async function shutdown(): Promise<void> {
   logger.info('Shutting down...');
   scanner.stop();
+  await new Promise<void>((resolve) => grpcServer.tryShutdown(() => resolve()));
   server.close();
   await prisma.$disconnect();
   await redis?.quit();

@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+package release_notifier.v1;
+
+service ReleaseNotifierService {
+  rpc Subscribe(SubscribeRequest) returns (SubscribeResponse);
+  rpc ConfirmSubscription(ConfirmRequest) returns (ConfirmResponse);
+  rpc Unsubscribe(UnsubscribeRequest) returns (UnsubscribeResponse);
+  rpc GetSubscriptions(GetSubscriptionsRequest) returns (GetSubscriptionsResponse);
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+message SubscribeRequest {
+  string email = 1;
+  // "owner/repo" format, e.g. "golang/go"
+  string repo = 2;
+}
+
+message SubscribeResponse {
+  string message = 1;
+}
+
+message ConfirmRequest {
+  // UUID token from the confirmation email
+  string token = 1;
+}
+
+message ConfirmResponse {
+  string message = 1;
+}
+
+message UnsubscribeRequest {
+  // UUID token from the unsubscribe link
+  string token = 1;
+}
+
+message UnsubscribeResponse {
+  string message = 1;
+}
+
+message GetSubscriptionsRequest {
+  string email = 1;
+}
+
+message GetSubscriptionsResponse {
+  repeated Subscription subscriptions = 1;
+}
+
+message Subscription {
+  string email = 1;
+  string repo = 2;
+  bool confirmed = 3;
+  optional string last_seen_tag = 4;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+}

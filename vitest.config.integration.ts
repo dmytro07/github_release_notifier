@@ -6,5 +6,6 @@ export default defineConfig({
     environment: 'node',
     globalSetup: ['tests/integration/globalSetup.ts'],
     testTimeout: 30_000,
+    fileParallelism: false,
   },
 });
