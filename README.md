@@ -76,7 +76,7 @@ Prisma migrations run automatically on startup (`prisma migrate deploy` in the D
 ### Local Development
 
 ```bash
-start:dev
+pnpm start:dev
 ```
 
 Alternatively:
