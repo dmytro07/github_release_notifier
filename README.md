@@ -49,6 +49,12 @@ src/
 ### Docker (recommended)
 
 ```bash
+pnpm docker:up
+```
+
+Alternatively:
+
+```bash
 cp .env.example .env          # Adjust GITHUB_TOKEN if you have one
 docker compose up --build
 ```
@@ -70,12 +76,19 @@ Prisma migrations run automatically on startup (`prisma migrate deploy` in the D
 ### Local Development
 
 ```bash
+start:dev
+```
+
+Alternatively:
+
+```bash
 pnpm install
 cp .env.example .env          # Configure DATABASE_URL, SMTP_*, etc.
 
 # Start Postgres, Redis, MailHog (via Docker or locally)
 docker compose up postgres redis mailhog -d
 
+pnpm prisma:generate          # Generate prisma client
 pnpm prisma:migrate           # Run migrations
 pnpm dev                      # tsx watch — hot-reload on file changes
 ```

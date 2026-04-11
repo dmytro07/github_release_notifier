@@ -7,21 +7,13 @@ services:
     ports:
       - "3000:3000"
       - "50051:50051"
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/release_notifier?schema=public
-      BASE_URL: http://localhost:3000
-      PORT: 3000
-      NODE_ENV: production
-      GITHUB_TOKEN: ${GITHUB_TOKEN}
-      SMTP_HOST: mailhog
-      SMTP_PORT: 1025
-      SMTP_USER: ""
-      SMTP_PASS: ""
-      FROM_EMAIL: noreply@releases-api.app
-      SCANNER_INTERVAL_MS: 300000
-      CORS_ORIGIN: "*"
       REDIS_URL: redis://redis:6379
-      GRPC_PORT: 50051
+      SMTP_HOST: mailhog
+      NODE_ENV: production
     depends_on:
       postgres:
         condition: service_healthy
